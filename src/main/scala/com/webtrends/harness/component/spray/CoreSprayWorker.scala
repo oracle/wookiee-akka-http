@@ -33,7 +33,7 @@ import com.webtrends.harness.authentication.CIDRRules
 import com.webtrends.harness.component._
 import com.webtrends.harness.component.spray.directive.CIDRDirectives
 import com.webtrends.harness.component.spray.route.{RouteAccessibility, RouteManager}
-import com.webtrends.harness.component.spray.serialization.EnumerationSerializer
+import com.webtrends.harness.component.spray.serialization.{Json4sSupport, EnumerationSerializer}
 import com.webtrends.harness.health.{ComponentState, _}
 import com.webtrends.harness.logging.ActorLoggingAdapter
 import org.json4s.ext.JodaTimeSerializers
