@@ -14,6 +14,7 @@ import com.webtrends.harness.component.StopComponent
 import com.webtrends.harness.health.HealthComponent
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 
 object AkkaHttpActor {
@@ -28,11 +29,20 @@ class AkkaHttpActor extends HActor {
   implicit val materializer = ActorMaterializer()
 
 
-  val serverSource = Http().bind(interface = "0.0.0.0", port =7070)
+  val port = 7070
+  val interface = "0.0.0.0"
+  val serverSource = Http().bind(interface, port)
 
-  val bindingFuture = serverSource.to(Sink.foreach{conn =>
-    conn.handleWith(RouteResult.route2HandlerFlow(routes))
-  }).run()
+  val bindingFuture = serverSource
+    .to(Sink.foreach { conn => conn.handleWith(RouteResult.route2HandlerFlow(routes)) })
+    .run()
+
+  bindingFuture.onComplete {
+    case Success(s) =>
+      log.info(s"akka-http server bound to port $port on interface $interface")
+    case Failure(f) =>
+      log.error(s"Failed to bind akka-http server: $f")
+  }
 
 
   def routes = AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
