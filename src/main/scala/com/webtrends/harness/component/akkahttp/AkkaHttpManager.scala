@@ -20,6 +20,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
    * @return
    */
   override def receive = super.receive orElse {
+    case AkkaHttpReloadRoutes => reloadRoutes
     case AkkaHttpMessage => println("DO SOMETHING HERE")
   }
 

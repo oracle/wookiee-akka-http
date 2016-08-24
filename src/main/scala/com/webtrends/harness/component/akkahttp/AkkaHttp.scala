@@ -12,7 +12,7 @@ trait AkkaHttp { this: Component =>
   var AkkaHttpRef:Option[ActorRef] = None
 
   def bindAkkaHttp = {
-    AkkaHttpRef.foreach( _ ! "reloadRoutes")
+    AkkaHttpRef.foreach( _ ! AkkaHttpBind)
   }
 
   def startAkkaHttp : ActorRef = {
@@ -22,7 +22,11 @@ trait AkkaHttp { this: Component =>
   }
 
   def stopAkkaHttp = {
-    AkkaHttpRef.foreach(_ ! "unbind")
+    AkkaHttpRef.foreach(_ ! AkkaHttpUnbind)
+  }
+
+  def reloadRoutes = {
+    AkkaHttpRef.foreach(_ ! AkkaHttpReloadRoutes)
   }
 }
 
