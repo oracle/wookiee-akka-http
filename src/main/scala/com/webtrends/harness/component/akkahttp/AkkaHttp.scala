@@ -11,10 +11,13 @@ trait AkkaHttp { this: Component =>
 
   var AkkaHttpRef:Option[ActorRef] = None
 
+  def bindAkkaHttp = {
+    AkkaHttpRef.foreach( _ ! "reloadRoutes")
+  }
+
   def startAkkaHttp : ActorRef = {
     val ref = context.actorOf(AkkaHttpActor.props, AkkaHttp.AkkaHttpName)
     AkkaHttpRef = Some(ref)
-    ref ! "bind"
     ref
   }
 
