@@ -12,15 +12,10 @@ case class AkkaHttpCommandResponse[T](data: Option[T], responseType: String = "_
 
 trait AkkaHttpBase {
   this: Command =>
+
   def addRoute(r: Route) = AkkaHttpRouteContainer.addRoute(r)
-}
 
-trait AkkaHttpGet extends AkkaHttpBase {
-  this: Command =>
-
-  addRoute(PathDirectives.path(path){get{executeRoute()}})
-
-  protected def executeRoute[T<:AnyRef:Manifest](bean:Option[CommandBean]=None) = {
+  protected def executeRoute[T <: AnyRef : Manifest](bean: Option[CommandBean] = None) = {
     onComplete[BaseCommandResponse[T]](execute[T](None).mapTo[BaseCommandResponse[T]]) {
       case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
       case Success(_) => failWith(new Exception("foo"))
@@ -29,3 +24,11 @@ trait AkkaHttpGet extends AkkaHttpBase {
   }
 }
 
+trait AkkaHttpGet extends AkkaHttpBase {
+  this: Command =>
+  addRoute(PathDirectives.path(path) {
+    get {
+      executeRoute()
+    }
+  })
+}
