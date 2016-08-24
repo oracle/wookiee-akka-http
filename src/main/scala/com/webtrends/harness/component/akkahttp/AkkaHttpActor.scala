@@ -5,8 +5,10 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.actor._
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
+import akka.http.scaladsl.model.{HttpResponse, HttpRequest, ContentTypes, HttpEntity}
+import akka.http.scaladsl.server.RouteResult
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Flow, Sink}
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.component.{ComponentMessage, StopComponent}
 import com.webtrends.harness.health.HealthComponent
@@ -21,44 +23,30 @@ object AkkaHttpActor {
   def props = Props(classOf[AkkaHttpActor])
 }
 
-case class AkkaHttpBind()
 case class AkkaHttpUnbind()
-case class AkkaHttpReloadRoutes()
 
 class AkkaHttpActor extends HActor {
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
   implicit val materializer = ActorMaterializer()
 
-  var binding: Option[Future[Http.ServerBinding]] = None
+  def routes = AkkaHttpRouteManager.getRoutes.reduceLeft(_ ~ _)
 
-  def reloadRoutes = {
-    binding match {
-      case None =>
-        bind
-      case Some(b) =>
-        b.flatMap(_.unbind()) onComplete {
-          case Success(s) =>
-            bind
-          case Failure(f) =>
-            log.error(s"Failed to unbind akka-http server: $f")
-        }
-    }
-  }
+  val serverSource = Http().bind(interface = "0.0.0.0", port =7070)
 
-  def bind: Unit = {
-    val routes = AkkaHttpRouteManager.getRoutes.reduceLeft(_ ~ _)
-    binding = Some(Http().bindAndHandle(routes, "0.0.0.0", 7070))
-  }
+  val bindingFuture = serverSource.to(Sink.foreach{conn =>
+    conn.handleWith(RouteResult.route2HandlerFlow(routes))
+  }).run()
+
+  var reloadingInProgress = true
+
 
   def unbind = {
-    binding.map(b => b.flatMap(_.unbind()))
+    bindingFuture.flatMap(_.unbind())
   }
 
   override def receive = super.receive orElse {
-    case AkkaHttpBind => bind
     case AkkaHttpUnbind => unbind
-    case AkkaHttpReloadRoutes => reloadRoutes
     case StopComponent => unbind
   }
 

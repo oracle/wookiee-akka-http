@@ -11,7 +11,7 @@
     <parent>
         <groupId>com.webtrends</groupId>
         <artifactId>wookiee</artifactId>
-        <version>1.2-SNAPSHOT</version>
+        <version>1.2.0</version>
     </parent>
 
     <properties>

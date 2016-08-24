@@ -19,7 +19,6 @@ trait AkkaHttpBaseRoute{
 
   protected def addRoute(route: Route) {
     AkkaHttpRouteManager.addRoute(route)
-    akkaHttpManager ! AkkaHttpReloadRoutes
   }
 }
 

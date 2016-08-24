@@ -7,15 +7,12 @@ package com.webtrends.harness.component.akkahttp
 import akka.actor.ActorRef
 import com.webtrends.harness.component.Component
 
-trait AkkaHttp { this: Component =>
+trait AkkaHttp {
+  this: Component =>
 
-  var AkkaHttpRef:Option[ActorRef] = None
+  var AkkaHttpRef: Option[ActorRef] = None
 
-  def bindAkkaHttp = {
-    AkkaHttpRef.foreach( _ ! AkkaHttpBind)
-  }
-
-  def startAkkaHttp : ActorRef = {
+  def startAkkaHttp: ActorRef = {
     val ref = context.actorOf(AkkaHttpActor.props, AkkaHttp.AkkaHttpName)
     AkkaHttpRef = Some(ref)
     ref
@@ -25,9 +22,6 @@ trait AkkaHttp { this: Component =>
     AkkaHttpRef.foreach(_ ! AkkaHttpUnbind)
   }
 
-  def reloadRoutes = {
-    AkkaHttpRef.foreach(_ ! AkkaHttpReloadRoutes)
-  }
 }
 
 object AkkaHttp {

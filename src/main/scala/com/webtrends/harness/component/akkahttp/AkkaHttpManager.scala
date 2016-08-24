@@ -4,9 +4,7 @@
  */
 package com.webtrends.harness.component.akkahttp
 
-import akka.actor.ActorRef
-import com.webtrends.harness.app.HarnessActor.SystemReady
-import com.webtrends.harness.component.{Message, ComponentMessage, Component}
+import com.webtrends.harness.component.Component
 
 case class AkkaHttpMessage()
 
@@ -20,7 +18,6 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
    * @return
    */
   override def receive = super.receive orElse {
-    case AkkaHttpReloadRoutes => reloadRoutes
     case AkkaHttpMessage => println("DO SOMETHING HERE")
   }
 
@@ -32,14 +29,6 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   override def start = {
     startAkkaHttp
     super.start
-  }
-
-  override protected def getChildActor(name: Option[String]): Option[ActorRef] = {
-    if (name.contains("akka-http-server")) {
-      AkkaHttpRef
-    } else {
-      None
-    }
   }
 
   /**
