@@ -1,10 +1,8 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, StandardRoute}
 import akka.http.scaladsl.server.directives.PathDirectives
-import com.webtrends.harness.HarnessConstants
+import akka.http.scaladsl.server.{Route, StandardRoute}
 import com.webtrends.harness.command.{BaseCommandResponse, Command, CommandBean}
 
 import scala.util.{Failure, Success}
@@ -12,17 +10,12 @@ import scala.util.{Failure, Success}
 case class AkkaHttpCommandResponse[T](data: Option[T], responseType: String = "_")
   extends BaseCommandResponse[T]
 
-trait AkkaHttpBaseRoute{
+trait AkkaHttpBase {
   this: Command =>
-
-  protected val akkaHttpManager =  context.actorSelection(HarnessConstants.ComponentFullName + "/" + "wookiee-akkahttp")
-
-  protected def addRoute(route: Route) {
-    AkkaHttpRouteManager.addRoute(route)
-  }
+  def addRoute(r: Route) = AkkaHttpRouteContainer.addRoute(r)
 }
 
-trait AkkaHttpGet extends AkkaHttpBaseRoute {
+trait AkkaHttpGet extends AkkaHttpBase {
   this: Command =>
 
   addRoute(PathDirectives.path(path){get{executeRoute()}})
