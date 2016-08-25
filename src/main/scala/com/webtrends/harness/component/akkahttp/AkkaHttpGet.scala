@@ -32,3 +32,4 @@ trait AkkaHttpGet extends AkkaHttpBase {
     }
   })
 }
+

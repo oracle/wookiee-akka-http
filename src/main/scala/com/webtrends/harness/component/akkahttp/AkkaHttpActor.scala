@@ -7,6 +7,7 @@ import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult
+import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import com.webtrends.harness.app.HActor
@@ -18,20 +19,20 @@ import scala.util.{Failure, Success}
 
 
 object AkkaHttpActor {
-  def props = Props(classOf[AkkaHttpActor])
+  def props(port: Int, interface: String, settings: ServerSettings) = {
+    Props(classOf[AkkaHttpActor], port, interface, settings)
+  }
 }
 
 case class AkkaHttpUnbind()
 
-class AkkaHttpActor extends HActor {
+class AkkaHttpActor(port: Int, interface: String, settings: ServerSettings) extends HActor {
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
   implicit val materializer = ActorMaterializer()
 
 
-  val port = 7070
-  val interface = "0.0.0.0"
-  val serverSource = Http().bind(interface, port)
+  val serverSource = Http().bind(interface, port, settings = settings)
 
   val bindingFuture = serverSource
     .to(Sink.foreach { conn => conn.handleWith(RouteResult.route2HandlerFlow(routes)) })
