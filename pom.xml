@@ -8,6 +8,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.webtrends</groupId>
+        <artifactId>wookiee</artifactId>
+        <version>1.1-SNAPSHOT</version>
+    </parent>
 
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
@@ -15,294 +20,41 @@
         <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
-        <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <scala.artifact.version>2.11</scala.artifact.version>
-        <scala.version>${scala.artifact.version}.4</scala.version>
-        <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
-        <akka.http.version>2.4.8</akka.http.version>
-        <wookiee.core.version>1.1.13</wookiee.core.version>
+        <parent.dir>/Users/chandrasinghel/Projects/wookiee/archetypes/wookiee-component-archetype/../..</parent.dir>
     </properties>
 
-    <groupId>com.webtrends</groupId>
+    <groupId>com.webtrends.service</groupId>
     <artifactId>wookiee-akka-http</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Component: Akka Http</name>
-    <description>HTTP support in Wookiee provided by Akka and automatic command routing.</description>
-
-    <!-- List the core committers -->
-    <developers>
-        <developer>
-            <id>wteng</id>
-            <name>Webtrends Engineering</name>
-            <email>info@webtrends.com</email>
-            <organization>webtrends</organization>
-            <organizationUrl>http://webtrends.com</organizationUrl>
-            <roles>
-                <role>developer</role>
-            </roles>
-            <timezone>-8</timezone>
-        </developer>
-    </developers>
-
-    <url>http://webtrends.github.io/wookiee-spray</url>
-    <organization>
-        <name>webtrends</name>
-        <url>http://webtrends.com</url>
-    </organization>
-
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/Webtrends/wookiee-kafka/issues</url>
-    </issueManagement>
-
-    <licenses>
-        <license>
-            <name>Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-            <comments>A business-friendly OSS license</comments>
-        </license>
-    </licenses>
-
-    <repositories>
-        <repository>
-            <id>JFrog</id>
-            <url>http://oss.jfrog.org/oss-release-local</url>
-        </repository>
-        <repository>
-            <id>JFrog Snap</id>
-            <url>http://oss.jfrog.org/oss-snapshot-local</url>
-        </repository>
-    </repositories>
-
-    <distributionManagement>
-        <site>
-            <id>${project.artifactId}-site</id>
-            <name>Deployment through GitHub's site plugin</name>
-            <url>${project.version}</url>
-        </site>
-        <repository>
-            <id>oss-jfrog-artifactory</id>
-            <name>oss-jfrog-artifactory-releases</name>
-            <url>http://oss.jfrog.org/artifactory/oss-release-local</url>
-        </repository>
-        <snapshotRepository>
-            <id>oss-jfrog-artifactory</id>
-            <name>oss-jfrog-artifactory-snapshots</name>
-            <url>http://oss.jfrog.org/artifactory/oss-snapshot-local</url>
-        </snapshotRepository>
-    </distributionManagement>
-
-    <profiles>
-        <profile>
-            <id>github-site</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.github.github</groupId>
-                        <artifactId>site-maven-plugin</artifactId>
-                        <version>0.10</version>
-                        <configuration>
-                            <message>Creating site for ${project.version}</message>
-                            <path>${project.distributionManagement.site.url}</path>
-                            <merge>true</merge>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>site</goal>
-                                </goals>
-                                <phase>site-deploy</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+    <name>wookiee-akka-http</name>
 
     <dependencies>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.webtrends</groupId>
             <artifactId>wookiee-core</artifactId>
-            <version>${wookiee.core.version}</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.webtrends</groupId>
             <artifactId>wookiee-test</artifactId>
-            <version>${wookiee.core.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.json4s</groupId>
-            <artifactId>json4s-jackson_${scala.artifact.version}</artifactId>
-            <version>3.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json4s</groupId>
-            <artifactId>json4s-native_${scala.artifact.version}</artifactId>
-            <version>3.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.json4s</groupId>
-            <artifactId>json4s-ext_${scala.artifact.version}</artifactId>
-            <version>3.4.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.11</artifactId>
-            <version>2.1.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scalatest</groupId>
-            <artifactId>scalatest-maven-plugin</artifactId>
-            <version>1.0-M2</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-testkit_2.11</artifactId>
-            <version>2.3.4</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-http-core_2.11</artifactId>
-            <version>${akka.http.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-stream_2.11</artifactId>
-            <version>${akka.http.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-http-testkit_2.11</artifactId>
-            <version>${akka.http.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-remote_2.11</artifactId>
-            <version>${akka.http.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-slf4j_2.11</artifactId>
-            <version>${akka.http.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.specs2</groupId>
-            <artifactId>specs2-junit_${scala.artifact.version}</artifactId>
-            <version>2.4.15</version>
-            <scope>test</scope>
+            <artifactId>akka-http-experimental_${scala.artifact.version}</artifactId>
+            <version>${akka.version}</version>
         </dependency>
     </dependencies>
 
     <build>
-        <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>
-        <testSourceDirectory>${basedir}/src/test/scala</testSourceDirectory>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>2.5.2</version>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>versions-maven-plugin</artifactId>
-                <version>2.1</version>
-            </plugin>
-            <plugin>
-                <artifactId>maven-scm-plugin</artifactId>
-                <version>1.8.1</version>
-                <configuration>
-                    <tag>v${project.version}</tag>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.5.1</version>
-                <configuration>
-                    <skip>true</skip>
-                    <!-- skip testCompile -->
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>com.google.code.sbt-compiler-maven-plugin</groupId>
-                <artifactId>sbt-compiler-maven-plugin</artifactId>
-                <version>1.0.0-beta5</version>
-                <executions>
-                    <execution>
-                        <id>default-sbt-compile</id>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>net.java.maven-incremental-build</groupId>
-                <artifactId>incremental-build-plugin</artifactId>
-                <version>1.6</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>incremental-build</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>2.4</version>
-                <configuration>
-                    <archive>
-                        <addMavenDescriptor>false</addMavenDescriptor>
-                        <manifest>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                        </manifest>
-                        <manifestEntries>
-                            <Implementation-Build>${project.version}</Implementation-Build>
-                        </manifestEntries>
-                    </archive>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>jar-no-fork</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.14.1</version>
-                <configuration>
-                    <useFile>false</useFile>
-                    <disableXmlReport>false</disableXmlReport>
-                    <includes>
-                        <include>**/*Spec.*</include>
-                    </includes>
-                </configuration>
-            </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
-                    <finalName>${build-artifact-name}</finalName>
+                    <finalName>wookiee-component-archetype-1.1-SNAPSHOT</finalName>
                     <descriptors>
                         <descriptor>src/main/assembly/dep.xml</descriptor>
                     </descriptors>
@@ -316,69 +68,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-installed</id>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>${project.groupId}</groupId>
-                                    <artifactId>${project.artifactId}</artifactId>
-                                    <version>${project.version}</version>
-                                    <type>${project.packaging}</type>
-                                </artifactItem>
-                            </artifactItems>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.scoverage</groupId>
-                <artifactId>scoverage-maven-plugin</artifactId>
-                <version>1.1.1</version>
-                <configuration>
-                    <scalaVersion>${scala.version}</scalaVersion>
-                    <highlighting>true</highlighting>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.eluder.coveralls</groupId>
-                <artifactId>coveralls-maven-plugin</artifactId>
-                <version>3.1.0</version>
-                <configuration>
-                    <coberturaReports>
-                        <param>${project.build.directory}/cobertura.xml</param>
-                    </coberturaReports>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>2.7</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-site-plugin</artifactId>
-                <version>3.4</version>
-                <configuration>
-                    <skipDeploy>true</skipDeploy>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -408,18 +97,28 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <id>Full</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>full-wookiee-component-archetype-1.1-SNAPSHOT</finalName>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>Component</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <finalName>component-wookiee-component-archetype-1.1-SNAPSHOT</finalName>
                             <artifactSet>
                                 <excludes>
                                     <!-- These are all libraries that are already loaded as part of the harness
                                             So we can keep them completely out of the component version of the Uber Jar -->
-                                    <exclude>${project.parent.groupId}:${project.parent.artifactId}-core:*</exclude>
+                                    <exclude>com.webtrends:wookiee-core:*</exclude>
                                     <exclude>org.scala-lang:scala-library:*</exclude>
                                     <exclude>com.typesafe.akka:akka-actor_*:*</exclude>
                                     <exclude>com.typesafe.akka:akka-cluster_*:*</exclude>
