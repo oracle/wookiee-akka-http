@@ -9,7 +9,6 @@ import com.webtrends.harness.component.Component
 case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
-
   /**
    * We add super.receive because if you override the receive message from the component
    * and then do not include super.receive it will not handle messages from the
@@ -23,7 +22,8 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
 
   /**
    * Start function will start any child actors that will be managed by the ComponentManager
-   * @return
+    *
+    * @return
    */
   override def start = {
     startAkkaHttp
@@ -33,10 +33,12 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   /**
    * Stop will execute any cleanup work to be done for the child actors
    * if not necessary this can be deleted
-   * @return
+    *
+    * @return
    */
   override def stop = {
     stopAkkaHttp
     super.stop
   }
+
 }

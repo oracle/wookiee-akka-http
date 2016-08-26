@@ -5,43 +5,55 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.actor._
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.RouteResult
+import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Sink
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.component.StopComponent
 import com.webtrends.harness.health.HealthComponent
 
 import scala.concurrent.Future
-import akka.http.scaladsl.server.Directives._
+import scala.util.{Failure, Success}
 
 
 object AkkaHttpActor {
-  def props = Props(classOf[AkkaHttpActor])
+  def props(port: Int, interface: String, settings: ServerSettings) = {
+    Props(classOf[AkkaHttpActor], port, interface, settings)
+  }
 }
 
-class AkkaHttpActor extends HActor {
+case class AkkaHttpUnbind()
+
+class AkkaHttpActor(port: Int, interface: String, settings: ServerSettings) extends HActor {
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
   implicit val materializer = ActorMaterializer()
 
-  var binding: Option[Future[Http.ServerBinding]] = None
 
-  def bind = {
-    val route =
-      path("ping") {
-        get {
-          complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>pong</h1>"))
-        }
-      }
-    binding = Some(Http().bindAndHandle(route, "0.0.0.0", 7070))
+  val serverSource = Http().bind(interface, port, settings = settings)
+
+  val bindingFuture = serverSource
+    .to(Sink.foreach { conn => conn.handleWith(RouteResult.route2HandlerFlow(routes)) })
+    .run()
+
+  bindingFuture.onComplete {
+    case Success(s) =>
+      log.info(s"akka-http server bound to port $port on interface $interface")
+    case Failure(f) =>
+      log.error(s"Failed to bind akka-http server: $f")
   }
 
+
+  def routes = AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+
   def unbind = {
-    binding.map(b => b.flatMap(_.unbind()))
+    bindingFuture.flatMap(_.unbind())
   }
 
   override def receive = super.receive orElse {
-    case "bind" => bind
+    case AkkaHttpUnbind => unbind
     case StopComponent => unbind
   }
 

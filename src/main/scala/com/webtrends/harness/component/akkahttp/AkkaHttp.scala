@@ -5,22 +5,29 @@
 package com.webtrends.harness.component.akkahttp
 
 import akka.actor.ActorRef
+import akka.http.scaladsl.settings.ServerSettings
 import com.webtrends.harness.component.Component
+import com.webtrends.harness.utils.ConfigUtil
 
-trait AkkaHttp { this: Component =>
+trait AkkaHttp {
+  this: Component =>
 
-  var AkkaHttpRef:Option[ActorRef] = None
+  val port = ConfigUtil.getDefaultValue(s"wookiee-akka-http.http-port", config.getInt, 7070)
+  val interface = ConfigUtil.getDefaultValue(s"wookiee-akka-http.interface", config.getString, "0.0.0.0")
+  val akkaHttpServerSettings = ServerSettings(config)
 
-  def startAkkaHttp : ActorRef = {
-    val ref = context.actorOf(AkkaHttpActor.props, AkkaHttp.AkkaHttpName)
+  var AkkaHttpRef: Option[ActorRef] = None
+
+  def startAkkaHttp: ActorRef = {
+    val ref = context.actorOf(AkkaHttpActor.props(port, interface, akkaHttpServerSettings), AkkaHttp.AkkaHttpName)
     AkkaHttpRef = Some(ref)
-    ref ! "bind"
     ref
   }
 
   def stopAkkaHttp = {
-    AkkaHttpRef.foreach(_ ! "unbind")
+    AkkaHttpRef.foreach(_ ! AkkaHttpUnbind)
   }
+
 }
 
 object AkkaHttp {
