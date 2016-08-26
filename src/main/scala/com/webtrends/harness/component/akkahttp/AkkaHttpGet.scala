@@ -1,8 +1,8 @@
 package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.PathDirectives
-import akka.http.scaladsl.server.{Route, StandardRoute}
 import com.webtrends.harness.command.{BaseCommandResponse, Command, CommandBean}
 
 import scala.util.{Failure, Success}
@@ -15,21 +15,28 @@ trait AkkaHttpBase {
 
   def addRoute(r: Route) = AkkaHttpRouteContainer.addRoute(r)
 
-  protected def executeRoute[T <: AnyRef : Manifest](bean: Option[CommandBean] = None) = {
-    onComplete[BaseCommandResponse[T]](execute[T](None).mapTo[BaseCommandResponse[T]]) {
-      case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
-      case Success(_) => failWith(new Exception("foo"))
-      case Failure(f) => failWith(f)
+  protected def commandDirective[T <: AnyRef : Manifest](bean: CommandBean = CommandBean(Map())) = {
+    handleRejections(RejectionHandler.default) & extractRequestContext.flatMap { requestContext =>
+      bean.addValue("akkaHttpReqCtx", requestContext)
+      onComplete[BaseCommandResponse[T]](execute[T](Some(bean))
+        .mapTo[BaseCommandResponse[T]])
+        .map {
+          case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
+          case Success(_) => failWith(new Exception("foo"))
+          case Failure(f) => failWith(f)
+        }
     }
   }
 }
 
 trait AkkaHttpGet extends AkkaHttpBase {
   this: Command =>
+
   addRoute(PathDirectives.path(path) {
     get {
-      executeRoute()
+      commandDirective().tapply(_._1)
     }
   })
+
 }
 
