@@ -22,6 +22,7 @@ trait AkkaHttpBase {
         .mapTo[BaseCommandResponse[T]])
         .map {
           case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
+          case Success(AkkaHttpCommandResponse(Some(route: Route), _)) => StandardRoute(route)
           case Success(_) => failWith(new Exception("foo"))
           case Failure(f) => failWith(f)
         }
@@ -40,3 +41,13 @@ trait AkkaHttpGet extends AkkaHttpBase {
 
 }
 
+trait AkkaHttpPost extends AkkaHttpBase {
+  this: Command =>
+
+  addRoute(PathDirectives.path(path) {
+    post {
+      commandDirective().tapply(_._1)
+    }
+  })
+
+}
