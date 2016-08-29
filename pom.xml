@@ -26,6 +26,17 @@
     <packaging>jar</packaging>
     <name>wookiee-akka-http</name>
 
+    <repositories>
+        <repository>
+            <id>JFrog</id>
+            <url>http://oss.jfrog.org/oss-release-local</url>
+        </repository>
+        <repository>
+            <id>JFrog Snap</id>
+            <url>http://oss.jfrog.org/oss-snapshot-local</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>com.webtrends</groupId>
@@ -51,7 +62,7 @@
                 <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
-                    <finalName>wookiee-component-archetype-1.1-SNAPSHOT</finalName>
+                    <finalName>wookiee-component-archetype-1.2-SNAPSHOT</finalName>
                     <descriptors>
                         <descriptor>src/main/assembly/dep.xml</descriptor>
                     </descriptors>
