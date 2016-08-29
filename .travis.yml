@@ -29,13 +29,8 @@ before_script:
 script:
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy --settings target/travis/settings.xml || echo "Testing..." && mvn test -B'
 
-after_success:
-- '[ "$TRAVIS_TAG" != "" ] && mvn site-deploy -P github-site -Dgithub.global.oauth2Token=$GITHUB_TOKEN || true'
-- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "$TRAVIS_TAG" = "" ] && mvn scoverage:report || true'
-
 env:
   global:
   - MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
   - secure: "U0cV/x0fOL1userPTApIodYefLgX2edpOdOQR7y9aN/j7zW2tI4oF+xv4uXtWhY08O0BpYsUBCyLMiCusKCUxs7tJNacGmCBD8LZ39Och0V3l5H0LXxasgv93H3RirkaYx5T1RVI9QOQl2+uroVEEVmyABPPQg9DBU8xsU+DPCTAxq++i3XK4exNJ+WEnga66No0K+Rdg4FAClpOE9DnITq5PYBXm3ohLAB5uGstLGe8yl12IGIhtCdcfcI+U4pS0pGbfsNdgTkrtOxe0uNh2PVBndKD0h54sxU8Q5HZMrSdpogoLPRqpDX6Q5D5Ho1ZGDLBiUb6le8mEvNIgcd5vO7CA7jYzjDwZSd8dI1FmQYAPo8WlDr32CePRGoo2ABW0x7byShh+4XrCEx3BU4svnQ4RjCauBmS1kPpFBsJ7bYj3sG8SQboY7yhz9sU4rgeRjtCdlKtWsyAM7uhXxT2zwJcDOH/jaFhlWHvW6B6xNANGBQC3rKHDg61qV5+YjfIX6+irMGd7GdMzMk/hc1QOY58a+fdD1zI1opvQN5zhbLsUiyx0Aq3zFcoqCw//KBCJGv9XmBu2RAi+7MREr+TqLiqqapi/K8g1fB0x+O5+kyz7w4jMLCDyOgJh6Eomi09+zfQhWIfeyr8ZST3cVr3ANXz+HCgEUvilSSlMw7JgSk="
-
 
