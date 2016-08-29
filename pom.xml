@@ -22,7 +22,7 @@
         <wookiee.version>1.2.0</wookiee.version>
     </properties>
 
-    <groupId>com.webtrends.service</groupId>
+    <groupId>com.webtrends</groupId>
     <artifactId>wookiee-akka-http</artifactId>
     <version>1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
