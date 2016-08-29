@@ -8,11 +8,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.webtrends</groupId>
-        <artifactId>wookiee</artifactId>
-        <version>1.2.0</version>
-    </parent>
 
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
@@ -20,7 +15,9 @@
         <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
-        <parent.dir>/Users/chandrasinghel/Projects/wookiee/archetypes/wookiee-component-archetype/../..</parent.dir>
+        <scala.artifact.version>2.11</scala.artifact.version>
+        <akka.version>2.4.9</akka.version>
+        <wookiee.version>1.2.0</wookiee.version>
     </properties>
 
     <groupId>com.webtrends.service</groupId>
@@ -29,16 +26,27 @@
     <packaging>jar</packaging>
     <name>wookiee-akka-http</name>
 
+    <repositories>
+        <repository>
+            <id>JFrog</id>
+            <url>http://oss.jfrog.org/oss-release-local</url>
+        </repository>
+        <repository>
+            <id>JFrog Snap</id>
+            <url>http://oss.jfrog.org/oss-snapshot-local</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>com.webtrends</groupId>
             <artifactId>wookiee-core</artifactId>
-            <version>${parent.version}</version>
+            <version>${wookiee.version}</version>
         </dependency>
         <dependency>
             <groupId>com.webtrends</groupId>
             <artifactId>wookiee-test</artifactId>
-            <version>${parent.version}</version>
+            <version>${wookiee.version}</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
@@ -54,7 +62,7 @@
                 <version>2.4</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
-                    <finalName>wookiee-component-archetype-1.1-SNAPSHOT</finalName>
+                    <finalName>wookiee-component-archetype-1.2-SNAPSHOT</finalName>
                     <descriptors>
                         <descriptor>src/main/assembly/dep.xml</descriptor>
                     </descriptors>
