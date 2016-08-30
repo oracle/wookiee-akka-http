@@ -1,5 +1,6 @@
 package com.webtrends.harness.component.akkahttp
 
+import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.PathDirectives
@@ -23,8 +24,12 @@ trait AkkaHttpBase {
         .map {
           case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
           case Success(AkkaHttpCommandResponse(Some(route: Route), _)) => StandardRoute(route)
-          case Success(_) => failWith(new Exception("foo"))
-          case Failure(f) => failWith(f)
+          case Success(unknownResponse) =>
+            log.error(s"Got unknown response $unknownResponse")
+            complete(InternalServerError)
+          case Failure(f) =>
+            log.error(s"Command failed with $f")
+            complete(InternalServerError)
         }
     }
   }
