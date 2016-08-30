@@ -1,0 +1,13 @@
+package com.webtrends.harness.component.akkahttp
+
+
+trait AkkaHttpUpload extends AkkaHttpPost {
+  this: Command =>
+
+  addRoute(PathDirectives.path(path) {
+    uploadedFile("csv") {
+      case (metadata, file) =>
+        commandDirective().tapply(_._1)
+    }
+  })
+}
