@@ -42,10 +42,12 @@ trait AkkaHttpBase {
           bean.addValue(AkkaHttpBase.Params, params)
           bean.addValue(AkkaHttpBase.Auth, auth)
           onComplete(execute(Some(bean)).mapTo[BaseCommandResponse[T]]) {
-            case Success(CommandResponse(None, _)) => complete(NoContent)
-            case Success(CommandResponse(Some(data), "json")) => complete(data)
             case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
             case Success(AkkaHttpCommandResponse(Some(route: Route), _)) => StandardRoute(route)
+            case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
+              case (None, _) => complete(NoContent)
+              case (Some(data), _) =>  complete(data)
+            }
             case Success(unknownResponse) =>
               log.error(s"Got unknown response $unknownResponse")
               complete(InternalServerError)
