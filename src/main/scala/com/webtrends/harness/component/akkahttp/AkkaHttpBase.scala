@@ -44,6 +44,10 @@ trait AkkaHttpBase {
           onComplete(execute(Some(bean)).mapTo[BaseCommandResponse[T]]) {
             case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
             case Success(AkkaHttpCommandResponse(Some(route: Route), _)) => StandardRoute(route)
+            case Success(AkkaHttpCommandResponse(Some(unknown), _)) =>
+              log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+              complete(InternalServerError)
+            case Success(AkkaHttpCommandResponse(None, _)) => complete(NoContent)
             case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
               case (None, _) => complete(NoContent)
               case (Some(data), _) =>  complete(data)
