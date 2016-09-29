@@ -3,7 +3,10 @@ package com.webtrends.harness.component.akkahttp
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import com.webtrends.harness.command.{BaseCommandResponse, Command, CommandBean}
+import com.webtrends.harness.command.{BaseCommandResponse, Command, CommandBean, CommandResponse}
+import org.json4s.ext.JodaTimeSerializers
+import org.json4s.{DefaultFormats, jackson}
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 
 import scala.util.{Failure, Success}
 
@@ -12,10 +15,14 @@ class AkkaHttpCommandBean() extends CommandBean
 
 trait AkkaHttpParameters
 trait AkkaHttpPathSegments
+trait AkkaHttpEntity
 trait AkkaHttpAuth
 
 trait AkkaHttpBase {
   this: Command =>
+
+  implicit val serialization = jackson.Serialization
+  implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
 
   def addRoute(r: Route) = AkkaHttpRouteContainer.addRoute(r)
 
@@ -31,10 +38,12 @@ trait AkkaHttpBase {
     httpPath { segments: AkkaHttpPathSegments =>
       httpParams { params: AkkaHttpParameters =>
         httpAuth { auth: AkkaHttpAuth =>
-          bean.addValue("segments", segments)
-          bean.addValue("params", params)
-          bean.addValue("auth", auth)
-          onComplete(execute(Some(bean)).mapTo[AkkaHttpCommandResponse[T]]) {
+          bean.addValue(AkkaHttpBase.Segments, segments)
+          bean.addValue(AkkaHttpBase.Params, params)
+          bean.addValue(AkkaHttpBase.Auth, auth)
+          onComplete(execute(Some(bean)).mapTo[BaseCommandResponse[T]]) {
+            case Success(CommandResponse(None, _)) => complete(NoContent)
+            case Success(CommandResponse(Some(data), "json")) => complete(data)
             case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _)) => route
             case Success(AkkaHttpCommandResponse(Some(route: Route), _)) => StandardRoute(route)
             case Success(unknownResponse) =>
@@ -50,4 +59,11 @@ trait AkkaHttpBase {
   }
 
   addRoute(commandOuterDirective)
+}
+
+object AkkaHttpBase {
+  val Segments = "segments"
+  val Params = "params"
+  val Auth = "auth"
+  val Entity = "entity"
 }
