@@ -19,8 +19,8 @@ import scala.util.{Failure, Success}
 
 
 object AkkaHttpActor {
-  def props(port: Int, interface: String, settings: ServerSettings) = {
-    Props(classOf[AkkaHttpActor], port, interface, settings)
+  def props(settings: ExternalAkkaHttpSettings) = {
+    Props(classOf[AkkaHttpActor], settings.port, settings.interface, settings.serverSettings)
   }
 }
 
@@ -40,9 +40,9 @@ class AkkaHttpActor(port: Int, interface: String, settings: ServerSettings) exte
 
   bindingFuture.onComplete {
     case Success(s) =>
-      log.info(s"akka-http server bound to port $port on interface $interface")
+      log.info(s"akka-http external-server bound to port $port on interface $interface")
     case Failure(f) =>
-      log.error(s"Failed to bind akka-http server: $f")
+      log.error(s"Failed to bind akka-http external-server: $f")
   }
 
 

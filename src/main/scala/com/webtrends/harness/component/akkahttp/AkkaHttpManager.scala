@@ -26,7 +26,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     * @return
    */
   override def start = {
-    startAkkaHttp
+    startAkkaHttp()
     super.start
   }
 
@@ -37,7 +37,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     * @return
    */
   override def stop = {
-    stopAkkaHttp
+    stopAkkaHttp()
     super.stop
   }
 
