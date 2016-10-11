@@ -114,7 +114,11 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
   }
 
 
-  def routes = baseRoutes ~ AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  def routes = if (AkkaHttpRouteContainer.isEmpty) {
+    baseRoutes
+  } else {
+    baseRoutes ~ AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  }
 
   def unbind = {
     bindingFuture.flatMap(_.unbind())

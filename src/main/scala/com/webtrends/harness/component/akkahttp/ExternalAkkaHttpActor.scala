@@ -39,7 +39,12 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   def unbind = bindingFuture.flatMap(_.unbind())
 
-  def routes = AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  def routes = if (AkkaHttpRouteContainer.isEmpty) {
+    log.error("no routes defined")
+    reject()
+  } else {
+    AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  }
 
   override def receive = super.receive orElse {
     case AkkaHttpUnbind => unbind
