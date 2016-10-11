@@ -7,7 +7,11 @@ import akka.actor.Props
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
+<<<<<<< HEAD
 import akka.http.scaladsl.server.{RouteResult, StandardRoute}
+=======
+import akka.http.scaladsl.server.RouteResult
+>>>>>>> 54a14f47a7f62c41c171e7f45c35642dc86e063b
 import akka.http.scaladsl.settings.ServerSettings
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
