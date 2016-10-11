@@ -40,8 +40,8 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
   def unbind = bindingFuture.flatMap(_.unbind())
 
   def routes = if (AkkaHttpRouteContainer.isEmpty) {
-    log.error("not routes defined")
-    failWith(new Exception("no routes defined"))
+    log.error("no routes defined")
+    reject()
   } else {
     AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   }
