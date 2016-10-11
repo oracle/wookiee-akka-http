@@ -38,7 +38,7 @@ final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: 
 object AkkaHttpSettings {
   def apply(config: Config): AkkaHttpSettings = {
     val internalPort = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.http-port", config.getInt, 8080)
-    val internalInterface = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.interface", config.getString, "127.0.0.0")
+    val internalInterface = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.interface", config.getString, "0.0.0.0")
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
       "wookiee-akka-http.external-server.enabled", config.getBoolean, false)
