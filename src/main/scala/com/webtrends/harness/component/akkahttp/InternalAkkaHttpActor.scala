@@ -7,7 +7,7 @@ import akka.actor.Props
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.RouteResult
+import akka.http.scaladsl.server.{RouteResult, StandardRoute}
 import akka.http.scaladsl.settings.ServerSettings
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -114,7 +114,11 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
   }
 
 
-  def routes = baseRoutes ~ AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  def routes = if (AkkaHttpRouteContainer.isEmpty) {
+    baseRoutes
+  } else {
+    baseRoutes ~ AkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  }
 
   def unbind = {
     bindingFuture.flatMap(_.unbind())
