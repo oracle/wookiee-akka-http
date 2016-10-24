@@ -35,10 +35,10 @@ trait AkkaHttpBase {
   }
 
   protected def commandInnerDirective[T <: AnyRef : Manifest](bean: CommandBean) = {
-    handleRejections(RejectionHandler.default) {
-      httpPath { segments: AkkaHttpPathSegments =>
-        httpParams { params: AkkaHttpParameters =>
-          httpAuth { auth: AkkaHttpAuth =>
+    httpPath { segments: AkkaHttpPathSegments =>
+      httpParams { params: AkkaHttpParameters =>
+        httpAuth { auth: AkkaHttpAuth =>
+          handleRejections(RejectionHandler.default) {
             bean.addValue(AkkaHttpBase.Segments, segments)
             bean.addValue(AkkaHttpBase.Params, params)
             bean.addValue(AkkaHttpBase.Auth, auth)
