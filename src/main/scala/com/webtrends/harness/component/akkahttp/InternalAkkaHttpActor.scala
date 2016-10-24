@@ -16,14 +16,14 @@ import com.webtrends.harness.HarnessConstants
 import com.webtrends.harness.app.{HActor, Harness}
 import com.webtrends.harness.component.messages.StatusRequest
 import com.webtrends.harness.component.{ComponentHelper, ComponentRequest, StopComponent}
-import com.webtrends.harness.health.{ApplicationHealth, HealthComponent, HealthRequest, HealthResponseType}
+import com.webtrends.harness.health._
 import com.webtrends.harness.service.ServiceManager
 import com.webtrends.harness.service.ServiceManager.GetMetaDataByName
 import com.webtrends.harness.service.messages.GetMetaData
 import com.webtrends.harness.service.meta.ServiceMetaData
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import org.joda.time.{DateTime, DateTimeZone}
-import org.json4s.ext.JodaTimeSerializers
+import org.json4s.ext.{EnumNameSerializer, JodaTimeSerializers}
 import org.json4s.{DefaultFormats, JValue, jackson}
 
 import scala.concurrent.Future
@@ -45,7 +45,8 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
 
   implicit val serialization = jackson.Serialization
-  implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
+
+  implicit val formats       = (DefaultFormats ++ JodaTimeSerializers.all) + new EnumNameSerializer(ComponentState)
 
   val serverSource = Http().bind(interface, port, settings = settings)
 
