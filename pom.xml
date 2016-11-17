@@ -19,7 +19,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.7</scala.version>
         <akka.version>2.4.9</akka.version>
-        <wookiee.core.version>1.2.3</wookiee.core.version>
+        <wookiee.core.version>1.2.5</wookiee.core.version>
     </properties>
 
     <groupId>com.webtrends</groupId>

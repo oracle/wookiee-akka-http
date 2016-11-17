@@ -3,14 +3,11 @@ package com.webtrends.harness.component.akkahttp
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase.CommandLike
-import com.webtrends.harness.logging.Logger
+import com.webtrends.harness.command.{BaseCommandResponse, CommandBean, BaseCommand}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, jackson}
 
-import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 case class AkkaHttpCommandResponse[T](data: Option[T], responseType: String = "_") extends BaseCommandResponse[T]
@@ -22,7 +19,7 @@ trait AkkaHttpEntity
 trait AkkaHttpAuth
 
 trait AkkaHttpBase {
-  this: CommandLike =>
+  this: BaseCommand =>
 
   implicit val serialization = jackson.Serialization
   implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
@@ -77,10 +74,4 @@ object AkkaHttpBase {
   val Params = "params"
   val Auth = "auth"
   val Entity = "entity"
-
-  type CommandLike = {
-    def path: String
-    def execute[T:Manifest](bean: Option[CommandBean]) : Future[BaseCommandResponse[T]]
-    val log : Logger
-  }
 }
