@@ -19,7 +19,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.7</scala.version>
         <akka.version>2.4.9</akka.version>
-        <wookiee.core.version>1.2.3</wookiee.core.version>
+        <wookiee.core.version>1.2.5</wookiee.core.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
@@ -97,13 +97,13 @@
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.artifact.version}</artifactId>
-            <version>2.2.6</version>
+            <version>3.0.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.scalacheck</groupId>
             <artifactId>scalacheck_${scala.artifact.version}</artifactId>
-            <version>1.12.5</version>
+            <version>1.13.4</version>
             <scope>test</scope>
         </dependency>
 
@@ -129,6 +129,32 @@
                         <arg>-target:jvm-1.8</arg>
                     </args>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <skipTests>true</skipTests>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <version>1.0</version>
+                <configuration>
+                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                    <junitxml>.</junitxml>
+                    <filereports>tests.txt</filereports>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>

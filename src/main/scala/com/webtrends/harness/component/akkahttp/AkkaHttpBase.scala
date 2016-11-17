@@ -3,10 +3,10 @@ package com.webtrends.harness.component.akkahttp
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import com.webtrends.harness.command.{BaseCommandResponse, Command, CommandBean, CommandResponse}
+import com.webtrends.harness.command.{BaseCommandResponse, CommandBean, BaseCommand}
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, jackson}
-import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 
 import scala.util.{Failure, Success}
 
@@ -19,12 +19,12 @@ trait AkkaHttpEntity
 trait AkkaHttpAuth
 
 trait AkkaHttpBase {
-  this: Command =>
+  this: BaseCommand =>
 
   implicit val serialization = jackson.Serialization
   implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
 
-  def addRoute(r: Route) = AkkaHttpRouteContainer.addRoute(r)
+  def addRoute(r: Route): Unit = AkkaHttpRouteContainer.addRoute(r)
 
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
