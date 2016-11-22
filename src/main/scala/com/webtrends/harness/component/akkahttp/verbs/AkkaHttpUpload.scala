@@ -13,10 +13,10 @@ trait AkkaHttpUpload extends AkkaHttpBase {
   this: BaseCommand =>
 
   def fileField: String = "file"
-  def fileSizeBytes: Long = 2.5e8.toLong
+  def maxFileSizeBytes: Long = 2.5e8.toLong
 
   override protected def commandInnerDirective[T <: AnyRef : Manifest](bean: CommandBean): Route = {
-    (withSizeLimit(fileSizeBytes) & fileUpload(fileField)) { case (fileInfo: FileInfo, fileStream: Source[ByteString, Any]) =>
+    (withSizeLimit(maxFileSizeBytes) & fileUpload(fileField)) { case (fileInfo: FileInfo, fileStream: Source[ByteString, Any]) =>
       bean.addValue(AkkaHttpUpload.FileInfo, fileInfo)
       bean.addValue(AkkaHttpUpload.FileStream, fileStream)
       super.commandInnerDirective(bean)
