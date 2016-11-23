@@ -17,6 +17,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.7</scala.version>
         <akka.version>2.4.9</akka.version>
+        <akka.http.version>2.4.11</akka.http.version>
         <wookiee.core.version>1.2.5</wookiee.core.version>
     </properties>
 
@@ -69,7 +70,7 @@
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http-experimental_${scala.artifact.version}</artifactId>
-            <version>${akka.version}</version>
+            <version>${akka.http.version}</version>
         </dependency>
         <dependency>
             <groupId>de.heikoseeberger</groupId>
@@ -89,7 +90,7 @@
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http-testkit_${scala.artifact.version}</artifactId>
-            <version>${akka.version}</version>
+            <version>${akka.http.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
