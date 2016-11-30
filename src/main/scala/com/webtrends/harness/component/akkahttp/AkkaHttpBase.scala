@@ -1,10 +1,10 @@
 package com.webtrends.harness.component.akkahttp
 
+import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import com.webtrends.harness.command.{BaseCommandResponse, CommandBean, BaseCommand}
-import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, jackson}
 
@@ -21,14 +21,19 @@ trait AkkaHttpAuth
 trait AkkaHttpBase {
   this: BaseCommand =>
 
-  implicit val serialization = jackson.Serialization
-  implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
 
   def addRoute(r: Route): Unit = AkkaHttpRouteContainer.addRoute(r)
 
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
+
+  def marshall[T <: AnyRef : Manifest](data: T): ToResponseMarshallable = {
+    implicit val serialization = jackson.Serialization
+    implicit val formats       = DefaultFormats ++ JodaTimeSerializers.all
+    import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+    ToResponseMarshallable(data)
+  }
 
   protected def commandOuterDirective = {
     commandInnerDirective(new CommandBean)
@@ -51,7 +56,7 @@ trait AkkaHttpBase {
               case Success(AkkaHttpCommandResponse(None, _)) => complete(NoContent)
               case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                 case (None, _) => complete(NoContent)
-                case (Some(data), _) => complete(data)
+                case (Some(data), _) => complete(marshall(data))
               }
               case Success(unknownResponse) =>
                 log.error(s"Got unknown response $unknownResponse")

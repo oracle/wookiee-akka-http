@@ -91,6 +91,12 @@
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-http-spray-json-experimental_${scala.artifact.version}</artifactId>
+            <version>${akka.http.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http-testkit_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
             <scope>test</scope>
