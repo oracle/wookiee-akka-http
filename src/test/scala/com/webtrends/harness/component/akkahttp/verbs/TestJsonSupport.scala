@@ -5,4 +5,5 @@ import spray.json.DefaultJsonProtocol
 
 object TestJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val testEntityFormat = jsonFormat2(TestEntity)
+  implicit val errorEntityFormat = jsonFormat1(ErrorEntity)
 }
