@@ -11,8 +11,7 @@ trait AkkaHttpPost extends AkkaHttpBase {
   this: BaseCommand =>
 
   override protected def commandInnerDirective[T <: AnyRef : Manifest](bean: CommandBean): Route = post {
-      bean.addValue(AkkaHttpBase.Entity, "a")
-      super.commandInnerDirective(bean)
+    super.commandInnerDirective(bean)
   }
 
 }

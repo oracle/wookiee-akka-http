@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
 import akka.http.scaladsl.model.{ContentTypes, MediaTypes, StatusCodes, headers => hdrs}
@@ -7,7 +7,8 @@ import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpException
+import com.webtrends.harness.component.akkahttp.util.{ErrorEntity, TestBaseCommand}
+import com.webtrends.harness.component.akkahttp.verbs.AkkaHttpGet
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
@@ -44,7 +45,7 @@ class AkkaHttpExceptionTest extends FunSuite
       }
 
       Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
-        import TestJsonSupport._
+        import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
         contentType mustEqual ContentTypes.`application/json`
         status mustEqual StatusCodes.InternalServerError
         entityAs[ErrorEntity] mustEqual err
@@ -71,7 +72,7 @@ class AkkaHttpExceptionTest extends FunSuite
       Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual code
         if (code.allowsEntity) {
-          import TestJsonSupport._
+          import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
           contentType mustEqual ContentTypes.`application/json`
           entityAs[ErrorEntity] mustEqual err
         }
@@ -101,7 +102,7 @@ class AkkaHttpExceptionTest extends FunSuite
     }
 
     Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
-      import TestJsonSupport._
+      import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
       status mustEqual code
       headers mustEqual h
       entityAs[ErrorEntity] mustEqual err

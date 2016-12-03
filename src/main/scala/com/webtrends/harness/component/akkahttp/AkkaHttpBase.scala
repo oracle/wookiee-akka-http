@@ -5,6 +5,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.{HttpHeader, StatusCode}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, jackson}
@@ -26,7 +27,6 @@ class AkkaHttpCommandBean() extends CommandBean
 
 trait AkkaHttpParameters
 trait AkkaHttpPathSegments
-trait AkkaHttpEntity
 trait AkkaHttpAuth
 
 
@@ -96,7 +96,6 @@ object AkkaHttpBase {
   val Segments = "segments"
   val Params = "params"
   val Auth = "auth"
-  val Entity = "entity"
 
   val formats = DefaultFormats ++ JodaTimeSerializers.all
 
@@ -106,5 +105,10 @@ object AkkaHttpBase {
 
   def entityMarshaller[T <: AnyRef]: ToEntityMarshaller[T] = {
     de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](jackson.Serialization, formats)
+  }
+
+  def unmarshaller[T](ev: Manifest[T]): FromRequestUnmarshaller[T] = {
+    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, jackson.Serialization, formats)
+    Unmarshaller.messageUnmarshallerFromEntityUnmarshaller(m)
   }
 }

@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToResponseMarshaller}
 import akka.http.scaladsl.model._
@@ -7,7 +7,8 @@ import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean, CommandResponse}
-import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
+import com.webtrends.harness.component.akkahttp.util.{TestBaseCommand, TestEntity}
+import com.webtrends.harness.component.akkahttp.verbs.AkkaHttpGet
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
@@ -42,7 +43,7 @@ class AkkaHttpMarshallerTest extends FunSuite
       }
 
       Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
-        import TestJsonSupport._
+        import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
         contentType mustEqual ContentTypes.`application/json`
         entityAs[TestEntity] mustEqual entity
       }
@@ -137,7 +138,7 @@ class AkkaHttpMarshallerTest extends FunSuite
       }
 
       Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
-        import TestJsonSupport._
+        import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
         contentType mustEqual ContentTypes.`application/json`
         entityAs[TestEntity] mustEqual entity
       }
