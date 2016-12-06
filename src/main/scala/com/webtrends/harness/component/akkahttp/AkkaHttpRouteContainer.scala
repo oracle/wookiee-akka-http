@@ -1,6 +1,5 @@
 package com.webtrends.harness.component.akkahttp
 
-import java.util
 import java.util.Collections
 
 import akka.http.scaladsl.server.Route

@@ -1,9 +1,9 @@
 package com.webtrends.harness.component.akkahttp.verbs
 
+import akka.http.scaladsl.server.Directives.put
 import akka.http.scaladsl.server.Route
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase
-import akka.http.scaladsl.server.Directives.put
 
 trait AkkaHttpPut extends AkkaHttpBase {
   this: BaseCommand =>
