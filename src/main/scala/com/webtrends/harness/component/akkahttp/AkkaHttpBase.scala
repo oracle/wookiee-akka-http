@@ -98,17 +98,18 @@ object AkkaHttpBase {
   val Auth = "auth"
 
   val formats = DefaultFormats ++ JodaTimeSerializers.all
+  val serialization = jackson.Serialization
 
   def marshaller[T <: AnyRef]: ToResponseMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](jackson.Serialization, formats)
+    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](serialization, formats)
   }
 
   def entityMarshaller[T <: AnyRef]: ToEntityMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](jackson.Serialization, formats)
+    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](serialization, formats)
   }
 
   def unmarshaller[T](ev: Manifest[T]): FromRequestUnmarshaller[T] = {
-    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, jackson.Serialization, formats)
+    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, serialization, formats)
     Unmarshaller.messageUnmarshallerFromEntityUnmarshaller(m)
   }
 }
