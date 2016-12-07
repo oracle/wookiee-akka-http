@@ -13,8 +13,10 @@ trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
 
   def unmarshaller: FromRequestUnmarshaller[EntityT] = AkkaHttpBase.unmarshaller[EntityT](ev)
 
+  def maxSizeBytes: Long = 1.024e6.toLong // 1MB
+
   override protected def commandInnerDirective[T <: AnyRef : Manifest](bean: CommandBean): Route = {
-    entity(as[EntityT](unmarshaller)) { entity =>
+    (withSizeLimit(maxSizeBytes) & entity(as[EntityT](unmarshaller))) { entity =>
       bean.addValue(AkkaHttpEntity.Entity, entity)
       super.commandInnerDirective(bean)
     }
