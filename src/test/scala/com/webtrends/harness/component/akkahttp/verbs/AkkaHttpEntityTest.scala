@@ -60,6 +60,42 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
     }
   }
 
+  test("should honor size limit") {
+
+    forAll(gen) { entity: TestEntity =>
+
+      var routes = Set.empty[Route]
+      val size = 1
+
+      new AkkaHttpPost with AkkaHttpEntity[TestEntity] with TestBaseCommand {
+
+        override def ev: Manifest[TestEntity] = Manifest.classType(classOf[TestEntity])
+
+        override def maxSizeBytes: Long = size
+
+        override def path: String = "test"
+
+        override def addRoute(r: Route): Unit = routes += r
+
+        override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
+          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val response = AkkaHttpCommandResponse(Some(e.asInstanceOf[T]))
+          Future.successful(response)
+        }
+      }
+
+
+
+      import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
+
+      Post("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
+        inside(rejection) {
+          case MalformedRequestContentRejection(_, _) =>
+        }
+      }
+    }
+  }
+
   test("should reject non JSON requests") {
 
     forAll(gen) { entity: TestEntity =>
