@@ -1,16 +1,11 @@
 package com.webtrends.harness.component.akkahttp.verbs
 
+import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.Directives.put
-import akka.http.scaladsl.server.Route
-import com.webtrends.harness.command.{BaseCommand, CommandBean}
+import com.webtrends.harness.command.BaseCommand
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase
 
 trait AkkaHttpPut extends AkkaHttpBase {
   this: BaseCommand =>
-
-  override protected def commandInnerDirective[T <: AnyRef : Manifest](bean: CommandBean): Route = {
-    put {
-      super.commandInnerDirective(bean)
-    }
-  }
+  override def httpMethod: Directive0 = put
 }
