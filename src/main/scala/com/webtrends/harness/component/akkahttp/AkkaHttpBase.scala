@@ -36,7 +36,7 @@ trait AkkaHttpBase {
   this: BaseCommand =>
 
 
-  def addRoute(r: Route): Unit = AkkaHttpRouteContainer.addRoute(r)
+  def addRoute(r: Route): Unit = ExternalAkkaHttpRouteContainer.addRoute(r)
 
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
