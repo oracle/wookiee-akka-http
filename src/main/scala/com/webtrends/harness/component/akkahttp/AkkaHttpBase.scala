@@ -107,8 +107,6 @@ object AkkaHttpBase {
 
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
-  val akkaHttpRejectionMarshaller: ToResponseMarshaller[AkkaHttpRejection] =
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[AkkaHttpRejection](serialization, formats)
 
   val rejectionHandler: RejectionHandler = RejectionHandler
     .default
