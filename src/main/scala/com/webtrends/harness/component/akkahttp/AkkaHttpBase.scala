@@ -2,13 +2,14 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.{HttpHeader, StatusCode}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
+import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import org.json4s.ext.JodaTimeSerializers
-import org.json4s.{DefaultFormats, jackson}
+import org.json4s.{DefaultFormats, Formats, jackson}
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -18,6 +19,7 @@ case class AkkaHttpCommandResponse[T](data: Option[T],
                                       marshaller: Option[ToResponseMarshaller[T]] = None) extends BaseCommandResponse[T]
 
 
+case class AkkaHttpRejection(rejection: String)
 case class AkkaHttpException[T](entity: T,
                                 statusCode: StatusCode = InternalServerError,
                                 headers: immutable.Seq[HttpHeader] = immutable.Seq.empty,
@@ -34,7 +36,7 @@ trait AkkaHttpBase {
   this: BaseCommand =>
 
 
-  def addRoute(r: Route): Unit = AkkaHttpRouteContainer.addRoute(r)
+  def addRoute(r: Route): Unit = ExternalAkkaHttpRouteContainer.addRoute(r)
 
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
@@ -52,7 +54,7 @@ trait AkkaHttpBase {
         httpParams { params: AkkaHttpParameters =>
           httpAuth { auth: AkkaHttpAuth =>
             beanDirective(inputBean) { outputBean =>
-              handleRejections(RejectionHandler.default) {
+              handleRejections(AkkaHttpBase.rejectionHandler) {
                 outputBean.addValue(AkkaHttpBase.Segments, segments)
                 outputBean.addValue(AkkaHttpBase.Params, params)
                 outputBean.addValue(AkkaHttpBase.Auth, auth)
@@ -103,8 +105,17 @@ object AkkaHttpBase {
   val Params = "params"
   val Auth = "auth"
 
-  val formats = DefaultFormats ++ JodaTimeSerializers.all
+  val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
+
+  val rejectionHandler: RejectionHandler = RejectionHandler
+    .default
+    .mapRejectionResponse {
+      case res @ HttpResponse(s, _, HttpEntity.Strict(_, data), _) =>
+        val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
+        res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
+      case res => res
+    }
 
   def marshaller[T <: AnyRef]: ToResponseMarshaller[T] = {
     de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](serialization, formats)

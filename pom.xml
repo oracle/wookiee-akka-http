@@ -17,7 +17,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.7</scala.version>
         <akka.version>2.4.9</akka.version>
-        <akka.http.version>2.4.11</akka.http.version>
+        <akka.http.version>10.0.2</akka.http.version>
         <wookiee.core.version>1.2.5</wookiee.core.version>
     </properties>
 
@@ -69,7 +69,7 @@
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-http-experimental_${scala.artifact.version}</artifactId>
+            <artifactId>akka-http_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
         </dependency>
         <dependency>
@@ -89,7 +89,7 @@
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-http-spray-json-experimental_${scala.artifact.version}</artifactId>
+            <artifactId>akka-http-spray-json_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
             <scope>test</scope>
         </dependency>
