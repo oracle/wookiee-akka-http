@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, _}
 import akka.http.scaladsl.model.{HttpMethods, StatusCodes}

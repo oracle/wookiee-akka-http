@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.server.Directive0
 import ch.megard.akka.http.cors._

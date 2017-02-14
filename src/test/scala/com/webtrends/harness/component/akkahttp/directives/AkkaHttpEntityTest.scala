@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
 import akka.http.scaladsl.model.{ContentTypes, MediaTypes, StatusCodes}

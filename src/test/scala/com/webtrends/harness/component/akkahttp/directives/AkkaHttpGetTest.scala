@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route

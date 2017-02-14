@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.{path => p, _}

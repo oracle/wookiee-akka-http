@@ -2,9 +2,9 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpInternal
 import com.webtrends.harness.component.akkahttp.methods.AkkaHttpGet
 import com.webtrends.harness.component.akkahttp.util.TestBaseCommand
-import com.webtrends.harness.component.akkahttp.verbs.AkkaHttpInternal
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
