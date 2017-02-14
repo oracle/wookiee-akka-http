@@ -48,8 +48,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
     }
 
     "Include default response headers when Origin request header is present" in {
-      Get("/test")
-        .withHeaders(List(Origin(HttpOrigin("http://www.foo.test")))) ~> defaultRoutes.reduceLeft(_ ~ _) ~> check {
+      Get("/test") ~> Origin(HttpOrigin("http://www.foo.test")) ~> defaultRoutes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.NoContent
 
         headers must contain(`Access-Control-Allow-Origin`(HttpOrigin("http://www.foo.test")))
@@ -71,8 +70,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
 
         override def addRoute(r: Route): Unit = routes += r
       }
-      Post("/test")
-        .withHeaders(List(Origin(HttpOrigin("http://www.foo.test")))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      Post("/test") ~> Origin(HttpOrigin("http://www.foo.test")) ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.InternalServerError
 
         headers must contain(`Access-Control-Allow-Origin`(HttpOrigin("http://www.foo.test")))
@@ -110,7 +108,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
         override def addRoute(r: Route): Unit = routes += r
       }
 
-      Get("/test").withHeaders(List(Origin(HttpOrigin("http://www.foo.test")))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      Get("/test") ~> Origin(HttpOrigin("http://www.foo.test")) ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.NoContent
 
         headers must contain (`Access-Control-Allow-Origin`(HttpOrigin("http://www.foo.test")))
@@ -152,8 +150,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
 
       val notAllowedOrigin = HttpOrigin("http://www.d.com")
 
-      Get("/test")
-        .withHeaders(List(Origin(HttpOrigin("http://www.a.com"))))~> routes.reduceLeft(_ ~ _) ~> check {
+      Get("/test") ~> Origin(HttpOrigin("http://www.a.com")) ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.NoContent
       }
 
@@ -204,11 +201,9 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
         override def addRoute(r: Route): Unit = routes += r
       }
 
-      Options("/test")
-        .withHeaders(List(
-          Origin(HttpOrigin("http://www.foo.test")),
-          `Access-Control-Request-Method`(HttpMethods.DELETE)
-        )) ~> routes.reduceLeft(_ ~ _) ~> check {
+      Options("/test") ~>
+        Origin(HttpOrigin("http://www.foo.test")) ~>
+        `Access-Control-Request-Method`(HttpMethods.DELETE) ~> routes.reduceLeft(_ ~ _) ~> check {
 
         status mustEqual StatusCodes.OK
 
@@ -234,11 +229,9 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
         override def addRoute(r: Route): Unit = routes += r
       }
 
-      Options("/test")
-        .withHeaders(List(
-          Origin(HttpOrigin("http://www.foo.test")),
-          `Access-Control-Request-Method`(HttpMethods.GET)
-        )) ~> routes.reduceLeft(_ ~ _) ~> check {
+      Options("/test") ~>
+        Origin(HttpOrigin("http://www.foo.test")) ~>
+        `Access-Control-Request-Method`(HttpMethods.GET) ~> routes.reduceLeft(_ ~ _) ~> check {
 
         inside(rejection) {
           case CorsRejection(None, Some(HttpMethods.GET), None) =>
@@ -261,12 +254,10 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
         override def addRoute(r: Route): Unit = routes += r
       }
 
-      Options("/test")
-        .withHeaders(List(
-          Origin(HttpOrigin("http://www.foo.test")),
-          `Access-Control-Request-Method`(HttpMethods.DELETE),
-          `Access-Control-Request-Headers`(allowedHeaders: _*)
-        )) ~> routes.reduceLeft(_ ~ _) ~> check {
+      Options("/test") ~>
+        Origin(HttpOrigin("http://www.foo.test")) ~>
+        `Access-Control-Request-Method`(HttpMethods.DELETE) ~>
+        `Access-Control-Request-Headers`(allowedHeaders: _*) ~> routes.reduceLeft(_ ~ _) ~> check {
 
         status mustEqual StatusCodes.OK
 
@@ -280,5 +271,4 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       }
     }
   }
-
 }
