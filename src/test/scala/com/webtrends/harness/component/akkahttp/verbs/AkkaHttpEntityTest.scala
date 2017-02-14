@@ -7,6 +7,7 @@ import akka.http.scaladsl.server.{MalformedRequestContentRejection, Route, Unsup
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpPost, AkkaHttpPut}
 import com.webtrends.harness.component.akkahttp.util.{ErrorEntity, TestBaseCommand, TestEntity}
 import com.webtrends.harness.component.akkahttp.{AkkaHttpCommandResponse, AkkaHttpException}
 import org.scalacheck.{Arbitrary, Gen}
@@ -83,10 +84,6 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
           Future.successful(response)
         }
       }
-
-
-
-      import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 
       Post("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
         inside(rejection) {

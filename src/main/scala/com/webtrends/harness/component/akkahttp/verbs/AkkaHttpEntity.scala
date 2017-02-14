@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.akkahttp.verbs
 
+import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase

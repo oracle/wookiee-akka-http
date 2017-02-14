@@ -7,8 +7,8 @@ import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.methods.AkkaHttpGet
 import com.webtrends.harness.component.akkahttp.util.{ErrorEntity, TestBaseCommand}
-import com.webtrends.harness.component.akkahttp.verbs.AkkaHttpGet
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
