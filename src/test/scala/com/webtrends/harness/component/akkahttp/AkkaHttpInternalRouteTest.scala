@@ -3,6 +3,7 @@ package com.webtrends.harness.component.akkahttp
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import com.webtrends.harness.component.akkahttp.methods.AkkaHttpGet
+import com.webtrends.harness.component.akkahttp.util.TestBaseCommand
 import com.webtrends.harness.component.akkahttp.verbs.AkkaHttpInternal
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
@@ -17,9 +18,8 @@ class AkkaHttpInternalRouteTest extends FunSuite
 
   test("Internal routes should not appear in external http server") {
 
-    new AkkaHttpGet with AkkaHttpInternal with BaseCommand {
+    new AkkaHttpGet with AkkaHttpInternal with TestBaseCommand {
       override def path: String = "test"
-      override val log = Logger(classOf[AkkaHttpInternalRouteTest].getName)
 
       override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
         Future.successful(AkkaHttpCommandResponse(None))
