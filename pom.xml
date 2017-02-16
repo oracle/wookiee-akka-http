@@ -88,6 +88,11 @@
             <version>3.5.0</version>
         </dependency>
         <dependency>
+            <groupId>ch.megard</groupId>
+            <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
+            <version>0.1.11</version>
+        </dependency>
+        <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http-spray-json_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>

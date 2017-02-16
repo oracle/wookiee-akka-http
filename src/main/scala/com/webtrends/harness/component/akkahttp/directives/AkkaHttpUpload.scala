@@ -1,7 +1,7 @@
-package com.webtrends.harness.component.akkahttp.verbs
+package com.webtrends.harness.component.akkahttp.directives
 
+import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.{path => p, _}
-import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.server.directives.FileInfo
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
