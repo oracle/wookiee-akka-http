@@ -60,7 +60,6 @@ trait AkkaHttpBase {
                 outputBean.addValue(AkkaHttpBase.Auth, auth)
                 onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                   case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _)) => route
-                  case Success(AkkaHttpCommandResponse(Some(route: Route), _, _)) => StandardRoute(route)
                   case Success(AkkaHttpCommandResponse(Some(data), _, None)) =>
                     completeWith(AkkaHttpBase.marshaller[T]()) { completeFunc => completeFunc(data) }
                   case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller))) =>
