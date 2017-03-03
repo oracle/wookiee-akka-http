@@ -9,7 +9,7 @@ import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import org.json4s.ext.JodaTimeSerializers
-import org.json4s.{DefaultFormats, Formats, jackson}
+import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -60,9 +60,8 @@ trait AkkaHttpBase {
                 outputBean.addValue(AkkaHttpBase.Auth, auth)
                 onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                   case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _)) => route
-                  case Success(AkkaHttpCommandResponse(Some(route: Route), _, _)) => StandardRoute(route)
                   case Success(AkkaHttpCommandResponse(Some(data), _, None)) =>
-                    completeWith(AkkaHttpBase.marshaller[T]) { completeFunc => completeFunc(data) }
+                    completeWith(AkkaHttpBase.marshaller[T]()) { completeFunc => completeFunc(data) }
                   case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller))) =>
                     completeWith(marshaller) { completeFunc => completeFunc(data) }
                   case Success(AkkaHttpCommandResponse(Some(unknown), _, _)) =>
@@ -72,14 +71,14 @@ trait AkkaHttpBase {
                   case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                     case (None, _) => complete(NoContent)
                     case (Some(data), _) =>
-                      completeWith(AkkaHttpBase.marshaller[T]) { completeFunc => completeFunc(data) }
+                      completeWith(AkkaHttpBase.marshaller[T]()) { completeFunc => completeFunc(data) }
                   }
                   case Success(unknownResponse) =>
                     log.error(s"Got unknown response $unknownResponse")
                     complete(InternalServerError)
                   case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
                     val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                      PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T])
+                      PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T]())
                     completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                   case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
                     val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
@@ -117,16 +116,17 @@ object AkkaHttpBase {
       case res => res
     }
 
-  def marshaller[T <: AnyRef]: ToResponseMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](serialization, formats)
+  def marshaller[T <: AnyRef](s: Serialization = serialization, fmt: Formats = formats): ToResponseMarshaller[T] = {
+    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](s, fmt)
   }
 
-  def entityMarshaller[T <: AnyRef]: ToEntityMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](serialization, formats)
+  def entityMarshaller[T <: AnyRef](s: Serialization = serialization, fmt: Formats = formats): ToEntityMarshaller[T] = {
+    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](s, fmt)
   }
 
-  def unmarshaller[T](ev: Manifest[T]): FromRequestUnmarshaller[T] = {
-    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, serialization, formats)
+  def unmarshaller[T](ev: Manifest[T], s: Serialization = serialization, fmt: Formats = formats)
+  : FromRequestUnmarshaller[T] = {
+    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, s, fmt)
     Unmarshaller.messageUnmarshallerFromEntityUnmarshaller(m)
   }
 }
