@@ -5,7 +5,8 @@ import akka.http.scaladsl.model.{HttpMethods, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.megard.akka.http.cors.{CorsRejection, CorsSettings}
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import ch.megard.akka.http.cors.scaladsl.CorsRejection
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpDelete, AkkaHttpGet, AkkaHttpPost}
