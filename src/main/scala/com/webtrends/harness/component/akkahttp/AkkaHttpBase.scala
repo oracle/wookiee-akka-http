@@ -8,6 +8,7 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
 
@@ -117,16 +118,16 @@ object AkkaHttpBase {
     }
 
   def marshaller[T <: AnyRef](s: Serialization = serialization, fmt: Formats = formats): ToResponseMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](s, fmt)
+    Json4sSupport.marshaller[T](s, fmt)
   }
 
   def entityMarshaller[T <: AnyRef](s: Serialization = serialization, fmt: Formats = formats): ToEntityMarshaller[T] = {
-    de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sMarshaller[T](s, fmt)
+    Json4sSupport.marshaller[T](s, fmt)
   }
 
   def unmarshaller[T](ev: Manifest[T], s: Serialization = serialization, fmt: Formats = formats)
   : FromRequestUnmarshaller[T] = {
-    val m = de.heikoseeberger.akkahttpjson4s.Json4sSupport.json4sUnmarshaller(ev, s, fmt)
+    val m = Json4sSupport.unmarshaller[T](ev, s, fmt)
     Unmarshaller.messageUnmarshallerFromEntityUnmarshaller(m)
   }
 }
