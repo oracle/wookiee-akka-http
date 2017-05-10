@@ -35,26 +35,28 @@ trait AkkaHttpAuth
 trait AkkaHttpBase {
   this: BaseCommand =>
 
-
+  def allPaths: Map[String, String] = Map(("default", path))
   def addRoute(r: Route): Unit = ExternalAkkaHttpRouteContainer.addRoute(r)
 
-  def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
+  def httpPath(pth: String): Directive1[AkkaHttpPathSegments] = p(pth) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def httpMethod: Directive0 = get
   def beanDirective(bean: CommandBean): Directive1[CommandBean] = provide(bean)
 
-  protected def commandOuterDirective = {
-    commandInnerDirective(new CommandBean)
+  protected def commandOuterDirective(pth: (String, String) = ("", path)) = {
+    commandInnerDirective(new CommandBean, pth)
   }
 
-  protected def commandInnerDirective[T <: AnyRef : Manifest](inputBean: CommandBean) = {
-    httpPath { segments: AkkaHttpPathSegments =>
+  protected def commandInnerDirective[T <: AnyRef : Manifest](inputBean: CommandBean,
+                                                              pth: (String, String) = ("", path)) = {
+    httpPath(pth._2) { segments: AkkaHttpPathSegments =>
       httpMethod {
         httpParams { params: AkkaHttpParameters =>
           httpAuth { auth: AkkaHttpAuth =>
             beanDirective(inputBean) { outputBean =>
               handleRejections(AkkaHttpBase.rejectionHandler) {
+                outputBean.addValue(AkkaHttpBase.Path, pth._1)
                 outputBean.addValue(AkkaHttpBase.Segments, segments)
                 outputBean.addValue(AkkaHttpBase.Params, params)
                 outputBean.addValue(AkkaHttpBase.Auth, auth)
@@ -96,10 +98,11 @@ trait AkkaHttpBase {
     }
   }
 
-  addRoute(commandOuterDirective)
+  allPaths.foreach(pth => addRoute(commandOuterDirective(pth)))
 }
 
 object AkkaHttpBase {
+  val Path = "path"
   val Segments = "segments"
   val Params = "params"
   val Auth = "auth"
