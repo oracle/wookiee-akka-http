@@ -29,6 +29,9 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     currentPath
   }
 
+  // Overriding this so that child classes won't have to worry about it
+  override def path = ""
+
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
   override def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] = {
