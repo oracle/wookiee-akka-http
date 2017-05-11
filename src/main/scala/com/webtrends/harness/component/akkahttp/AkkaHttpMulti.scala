@@ -12,6 +12,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoints as keys to http methods as values, e.g. Map("account/$acctId", get)
   def allPaths: List[(String, Directive1[AkkaHttpPathSegments], Directive0)]
 
+  def emptyPath(pth: String) = p(pth) & provide(new AkkaHttpPathSegments {})
 
   // Method that adds all routes from allPaths
   override def createRoutes() = {
