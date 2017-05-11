@@ -31,6 +31,11 @@ trait AkkaHttpParameters
 trait AkkaHttpPathSegments
 trait AkkaHttpAuth
 
+// Use these to generically extract values from a query string
+case class Holder1(i1: String) extends AkkaHttpPathSegments
+case class Holder2(i1: String, i2: String) extends AkkaHttpPathSegments
+case class Holder3(i1: String, i2: String, i3: String) extends AkkaHttpPathSegments
+case class Holder4(i1: String, i2: String, i3: String, i4: String) extends AkkaHttpPathSegments
 
 trait AkkaHttpBase {
   this: BaseCommand =>
@@ -42,7 +47,7 @@ trait AkkaHttpBase {
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def httpMethod: Directive0 = get
-  def beanDirective(bean: CommandBean): Directive1[CommandBean] = provide(bean)
+  def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] = provide(bean)
 
   protected def commandOuterDirective = {
     commandInnerDirective(new CommandBean)
@@ -55,7 +60,7 @@ trait AkkaHttpBase {
       method {
         httpParams { params: AkkaHttpParameters =>
           httpAuth { auth: AkkaHttpAuth =>
-            beanDirective(inputBean) { outputBean =>
+            beanDirective(inputBean, pathName) { outputBean =>
               handleRejections(AkkaHttpBase.rejectionHandler) {
                 extractMethod { extMethod =>
                   outputBean.addValue(AkkaHttpBase.Path, pathName)
