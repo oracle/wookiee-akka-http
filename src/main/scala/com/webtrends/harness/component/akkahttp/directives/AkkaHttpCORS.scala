@@ -1,7 +1,8 @@
 package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.server.Directive0
-import ch.megard.akka.http.cors._
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.BaseCommand
 import com.webtrends.harness.component.akkahttp.methods.AkkaHttpMethod
 
