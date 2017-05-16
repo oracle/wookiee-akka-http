@@ -24,7 +24,7 @@ case class AkkaHttpRejection(rejection: String)
 case class AkkaHttpException[T](entity: T,
                                 statusCode: StatusCode = InternalServerError,
                                 headers: immutable.Seq[HttpHeader] = immutable.Seq.empty,
-                                marshaller: Option[ToEntityMarshaller[T]] = None) extends Throwable
+                                marshaller: Option[ToEntityMarshaller[T]] = None) extends Throwable(entity.toString)
 
 class AkkaHttpCommandBean() extends CommandBean
 
