@@ -37,6 +37,7 @@ case class Holder1(i1: String) extends AkkaHttpPathSegments
 case class Holder2(i1: String, i2: String) extends AkkaHttpPathSegments
 case class Holder3(i1: String, i2: String, i3: String) extends AkkaHttpPathSegments
 case class Holder4(i1: String, i2: String, i3: String, i4: String) extends AkkaHttpPathSegments
+case class Holder5(i1: String, i2: String, i3: String, i4: String, i5: String) extends AkkaHttpPathSegments
 
 trait AkkaHttpBase {
   this: BaseCommand =>
@@ -49,6 +50,8 @@ trait AkkaHttpBase {
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def httpMethod: Directive0 = get
   def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] = provide(bean)
+
+  def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
 
   protected def commandOuterDirective = {
     commandInnerDirective(new CommandBean)
@@ -72,7 +75,7 @@ trait AkkaHttpBase {
                   onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                     case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _)) => route
                     case Success(AkkaHttpCommandResponse(Some(data), _, None)) =>
-                      completeWith(AkkaHttpBase.marshaller[T]()) { completeFunc => completeFunc(data) }
+                      completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                     case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller))) =>
                       completeWith(marshaller) { completeFunc => completeFunc(data) }
                     case Success(AkkaHttpCommandResponse(Some(unknown), _, _)) =>
@@ -82,7 +85,7 @@ trait AkkaHttpBase {
                     case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                       case (None, _) => complete(NoContent)
                       case (Some(data), _) =>
-                        completeWith(AkkaHttpBase.marshaller[T]()) { completeFunc => completeFunc(data) }
+                        completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                     }
                     case Success(unknownResponse) =>
                       log.error(s"Got unknown response $unknownResponse")
