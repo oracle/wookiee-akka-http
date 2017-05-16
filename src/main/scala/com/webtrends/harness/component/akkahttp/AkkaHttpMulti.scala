@@ -1,10 +1,10 @@
 package com.webtrends.harness.component.akkahttp
 
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
-import akka.http.scaladsl.server.{Directive1, PathMatcher}
+import akka.http.scaladsl.server.{Directive0, Directive1, ImplicitPathMatcherConstruction, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
-import org.json4s.ext.JodaTimeSerializers
-import org.json4s.{DefaultFormats, FieldSerializer, Formats}
+import com.webtrends.harness.component.akkahttp.methods.AkkaHttpMethod
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -24,38 +24,48 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   override def createRoutes() = {
     allPaths.foreach { case (pathName, endpoint) =>
       var segCount = 0
-      // Map whatever method this is to its akka http object
-      val methUp = endpoint.method.toUpperCase()
-      val meth = Map("GET" -> get, "PUT" -> put, "DELETE" -> delete, "POST" -> post,
-        "OPTIONS" -> options)(methUp)
       // Split the path into segments and map those to their akka http objects
-      val segs = endpoint.url.split("/").filter(_.nonEmpty).map(_.asInstanceOf[Any]).toSeq
-      // Combine all segments into an akka path
-      val headX = segs.head match {
-        case s1: String if s1.startsWith("$") => Segment
-        case s1: String => s1 unary_!()
-        case s: PathMatcher[_] => s
-      }
-      val dir = segs.tail.foldLeft(headX) { (x, y) => y match {
-          case s1: String if s1.startsWith("$") => x / s1
-          case s1: String => x / s1
+      val segs = endpoint.url.split("/").filter(_.nonEmpty).toSeq
+      try {
+        // Combine all segments into an akka path
+        val dir = segs.tail.foldLeft(segs.head.asInstanceOf[Any]) { (x, y) =>
+          y match {
+            case s1: String if s1.startsWith("$") =>
+              segCount += 1
+              (x match {
+                case p: String => p / Segment
+                case p: PathMatcher[Tuple1[String]] => p / Segment
+                case p: PathMatcher[(String, String)] => p / Segment
+                case p: PathMatcher[(String, String, String)] => p / Segment
+                case p: PathMatcher[(String, String, String, String)] => p / Segment
+              }).asInstanceOf[PathMatcher[_]]
+            case s1: String =>
+              (x match {
+                case p: String => p / s1
+                case p: PathMatcher[Tuple1[String]] => p / s1
+                case p: PathMatcher[(String, String)] => p / s1
+                case p: PathMatcher[(String, String, String)] => p / s1
+                case p: PathMatcher[(String, String, String, String)] => p / s1
+              }).asInstanceOf[PathMatcher[_]]
+          }
         }
-      }
-      // Add holders for query params if applicable
-      currentPath = if (segCount > 0) {
-        segCount match {
+        // Add holders for query params if applicable
+        currentPath = segCount match {
+          case 0 => emptyPath(endpoint.url)
           case 1 => p(dir.asInstanceOf[PathMatcher[Tuple1[String]]]).as(Holder1)
           case 2 => p(dir.asInstanceOf[PathMatcher[(String, String)]]).as(Holder2)
           case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
           case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
           case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
         }
-      } else {
-        emptyPath(endpoint.url)
+        // Can override this method to do something else with the endpoint
+        endpointExtraProcessing(endpoint)
+        addRoute(commandInnerDirective(new CommandBean, pathName, AkkaHttpMethod.httpMethod(endpoint.method)))
+      } catch {
+        case ex: Throwable =>
+          log.error(s"Error adding path ${endpoint.url}", ex)
+          throw ex
       }
-      // Can override this method to do something else with the endpoint
-      endpointExtraProcessing(endpoint)
-      addRoute(commandInnerDirective(new CommandBean, pathName, meth))
     }
   }
 
@@ -86,4 +96,4 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 // Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params
 // can be input with $param, e.g. /endpoint/$param/accounts, method is an HTTP method, e.g. GET,
 // unmarshaller is a case class that can hold the extract of the json body input
-case class Endpoint(url: String, method: String, unmarshaller: Option[Class[_]] = None)
+case class Endpoint(url: String, method: HttpMethod, unmarshaller: Option[Class[_]] = None)

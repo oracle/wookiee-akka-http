@@ -68,7 +68,7 @@ trait AkkaHttpBase {
               handleRejections(AkkaHttpBase.rejectionHandler) {
                 extractMethod { extMethod =>
                   outputBean.addValue(AkkaHttpBase.Path, pathName)
-                  outputBean.addValue(AkkaHttpBase.Method, extMethod.name)
+                  outputBean.addValue(AkkaHttpBase.Method, extMethod)
                   outputBean.addValue(AkkaHttpBase.Segments, segments)
                   outputBean.addValue(AkkaHttpBase.Params, params)
                   outputBean.addValue(AkkaHttpBase.Auth, auth)
