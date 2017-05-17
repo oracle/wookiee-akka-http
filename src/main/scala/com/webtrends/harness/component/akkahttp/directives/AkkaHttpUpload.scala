@@ -15,11 +15,11 @@ trait AkkaHttpUpload extends AkkaHttpBase {
   def fileField: String = "file"
   def maxFileSizeBytes: Long = 2.5e8.toLong
 
-  override def beanDirective(bean: CommandBean): Directive1[CommandBean] =
+  override def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] =
     (withSizeLimit(maxFileSizeBytes) & fileUpload(fileField)).flatMap { case (fileInfo: FileInfo, fileStream: Source[ByteString, Any]) =>
       bean.addValue(AkkaHttpUpload.FileInfo, fileInfo)
       bean.addValue(AkkaHttpUpload.FileStream, fileStream)
-      super.beanDirective(bean)
+      super.beanDirective(bean, pathName)
     }
 }
 

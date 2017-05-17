@@ -11,7 +11,11 @@ trait AkkaHttpMethod extends AkkaHttpBase {
 
   def method: HttpMethod
 
-  override def httpMethod: Directive0 = method match {
+  override def httpMethod: Directive0 = AkkaHttpMethod.httpMethod(method)
+}
+
+object AkkaHttpMethod {
+  def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
     case HttpMethods.PUT => put
     case HttpMethods.POST => post
