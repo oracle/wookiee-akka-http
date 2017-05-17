@@ -20,6 +20,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
+  // TODO: Add support for inputs of specific types, instead of treating every segment as a string
   // Method that adds all routes from allPaths
   override def createRoutes() = {
     allPaths.foreach { case (pathName, endpoint) =>
