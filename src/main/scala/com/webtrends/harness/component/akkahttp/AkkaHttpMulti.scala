@@ -1,8 +1,8 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.model.HttpMethod
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
-import akka.http.scaladsl.server.{Directive0, Directive1, ImplicitPathMatcherConstruction, PathMatcher}
+import akka.http.scaladsl.server.{Directive1, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp.methods.AkkaHttpMethod
 
@@ -12,7 +12,7 @@ import com.webtrends.harness.component.akkahttp.methods.AkkaHttpMethod
   */
 trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
-  def allPaths: Map[String, Endpoint]
+  def allPaths: List[Endpoint]
 
   // Convenient method for when your path will not have any segments
   def emptyPath(pth: String) = p(pth) & provide(new AkkaHttpPathSegments {})
@@ -23,7 +23,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // TODO: Add support for inputs of specific types, instead of treating every segment as a string
   // Method that adds all routes from allPaths
   override def createRoutes() = {
-    allPaths.foreach { case (pathName, endpoint) =>
+    allPaths.foreach { endpoint =>
       var segCount = 0
       // Split the path into segments and map those to their akka http objects
       val segs = endpoint.url.split("/").filter(_.nonEmpty).toSeq
@@ -61,7 +61,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
-        addRoute(commandInnerDirective(new CommandBean, pathName, AkkaHttpMethod.httpMethod(endpoint.method)))
+        addRoute(commandInnerDirective(new CommandBean, endpoint.url, AkkaHttpMethod.httpMethod(endpoint.method)))
       } catch {
         case ex: Throwable =>
           log.error(s"Error adding path ${endpoint.url}", ex)
@@ -81,16 +81,16 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
-  override def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] = {
-    val entityClass = allPaths.get(pathName).flatMap(_.unmarshaller)
+  override def beanDirective(bean: CommandBean, url: String = ""): Directive1[CommandBean] = {
+    val entityClass = allPaths.find(url == _.url).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev)
       (withSizeLimit(maxSizeBytes) & entity(as[AnyRef](unmarsh))).flatMap { entity =>
         bean.addValue(CommandBean.KeyEntity, entity)
-        super.beanDirective(bean, pathName)
+        super.beanDirective(bean, url)
       }
-    } else super.beanDirective(bean, pathName)
+    } else super.beanDirective(bean, url)
   }
 }
 
