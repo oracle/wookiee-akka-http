@@ -58,16 +58,16 @@ trait AkkaHttpBase {
   }
 
   protected def commandInnerDirective[T <: AnyRef : Manifest](inputBean: CommandBean,
-                                                              pathName: String = path,
+                                                              url: String = path,
                                                               method: Directive0 = httpMethod) = {
     httpPath { segments: AkkaHttpPathSegments =>
       method {
         httpParams { params: AkkaHttpParameters =>
           httpAuth { auth: AkkaHttpAuth =>
-            beanDirective(inputBean, pathName) { outputBean =>
+            beanDirective(inputBean, url) { outputBean =>
               handleRejections(AkkaHttpBase.rejectionHandler) {
                 extractMethod { extMethod =>
-                  outputBean.addValue(AkkaHttpBase.Path, pathName)
+                  outputBean.addValue(AkkaHttpBase.Path, url)
                   outputBean.addValue(AkkaHttpBase.Method, extMethod)
                   outputBean.addValue(AkkaHttpBase.Segments, segments)
                   outputBean.addValue(AkkaHttpBase.Params, params)
