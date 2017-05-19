@@ -1,6 +1,6 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.model.HttpMethod
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
