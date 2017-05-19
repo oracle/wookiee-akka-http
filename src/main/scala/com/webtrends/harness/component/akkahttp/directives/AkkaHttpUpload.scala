@@ -1,5 +1,6 @@
 package com.webtrends.harness.component.akkahttp.directives
 
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.directives.FileInfo
@@ -15,11 +16,11 @@ trait AkkaHttpUpload extends AkkaHttpBase {
   def fileField: String = "file"
   def maxFileSizeBytes: Long = 2.5e8.toLong
 
-  override def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] =
+  override def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] =
     (withSizeLimit(maxFileSizeBytes) & fileUpload(fileField)).flatMap { case (fileInfo: FileInfo, fileStream: Source[ByteString, Any]) =>
       bean.addValue(AkkaHttpUpload.FileInfo, fileInfo)
       bean.addValue(AkkaHttpUpload.FileStream, fileStream)
-      super.beanDirective(bean, pathName)
+      super.beanDirective(bean, pathName, method)
     }
 }
 

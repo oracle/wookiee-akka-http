@@ -1,5 +1,6 @@
 package com.webtrends.harness.component.akkahttp.directives
 
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
@@ -15,10 +16,10 @@ trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
 
   def maxSizeBytes: Long = 1.024e6.toLong // 1MB
 
-  override def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean]  =
+  override def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean]  =
     (withSizeLimit(maxSizeBytes) & entity(as[EntityT](unmarshaller))).flatMap { entity =>
       bean.addValue(AkkaHttpEntity.Entity, entity)
-      super.beanDirective(bean, pathName)
+      super.beanDirective(bean, pathName, method)
     }
 }
 
