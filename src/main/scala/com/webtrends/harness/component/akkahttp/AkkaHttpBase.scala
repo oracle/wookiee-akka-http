@@ -49,7 +49,7 @@ trait AkkaHttpBase {
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def httpMethod: Directive0 = get
-  def beanDirective(bean: CommandBean, pathName: String = ""): Directive1[CommandBean] = provide(bean)
+  def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
 
@@ -64,9 +64,9 @@ trait AkkaHttpBase {
       method {
         httpParams { params: AkkaHttpParameters =>
           httpAuth { auth: AkkaHttpAuth =>
-            beanDirective(inputBean, url) { outputBean =>
-              handleRejections(AkkaHttpBase.rejectionHandler) {
-                extractMethod { extMethod =>
+            extractMethod { extMethod =>
+              beanDirective(inputBean, url, extMethod) { outputBean =>
+                handleRejections(AkkaHttpBase.rejectionHandler) {
                   outputBean.addValue(AkkaHttpBase.Path, url)
                   outputBean.addValue(AkkaHttpBase.Method, extMethod)
                   outputBean.addValue(AkkaHttpBase.Segments, segments)

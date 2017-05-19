@@ -1,6 +1,6 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.model.HttpMethod
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
@@ -81,16 +81,16 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
-  override def beanDirective(bean: CommandBean, url: String = ""): Directive1[CommandBean] = {
-    val entityClass = allPaths.find(url == _.url).flatMap(_.unmarshaller)
+  override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
+    val entityClass = allPaths.find(e => url == e.url && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev)
       (withSizeLimit(maxSizeBytes) & entity(as[AnyRef](unmarsh))).flatMap { entity =>
         bean.addValue(CommandBean.KeyEntity, entity)
-        super.beanDirective(bean, url)
+        super.beanDirective(bean, url, method)
       }
-    } else super.beanDirective(bean, url)
+    } else super.beanDirective(bean, url, method)
   }
 }
 
