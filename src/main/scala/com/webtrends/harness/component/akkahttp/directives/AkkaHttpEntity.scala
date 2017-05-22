@@ -12,7 +12,7 @@ trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
 
   def ev: Manifest[EntityT]
 
-  def unmarshaller: FromRequestUnmarshaller[EntityT] = AkkaHttpBase.unmarshaller[EntityT](ev)
+  def unmarshaller: FromRequestUnmarshaller[EntityT] = AkkaHttpBase.unmarshaller[EntityT](ev, fmt = formats)
 
   def maxSizeBytes: Long = 1.024e6.toLong // 1MB
 
