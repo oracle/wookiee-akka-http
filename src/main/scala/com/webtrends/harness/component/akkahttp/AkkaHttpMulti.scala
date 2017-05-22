@@ -83,7 +83,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
-      val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev)
+      val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
       (withSizeLimit(maxSizeBytes) & entity(as[AnyRef](unmarsh))).flatMap { entity =>
         bean.addValue(CommandBean.KeyEntity, entity)
         super.beanDirective(bean, url, method)

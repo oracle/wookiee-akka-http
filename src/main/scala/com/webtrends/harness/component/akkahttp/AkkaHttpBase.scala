@@ -96,7 +96,7 @@ trait AkkaHttpBase {
                         complete(InternalServerError)
                       case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
                         val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T]())
+                          PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
                         completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                       case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
                         val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
