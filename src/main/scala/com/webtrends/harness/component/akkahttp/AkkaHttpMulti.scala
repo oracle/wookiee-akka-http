@@ -14,9 +14,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
-  // Convenient method for when your path will not have any segments
-  def emptyPath(pth: String) = p(pth) & provide(new AkkaHttpPathSegments {})
-
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
@@ -26,7 +23,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     allPaths.foreach { endpoint =>
       var segCount = 0
       // Split the path into segments and map those to their akka http objects
-      val segs = endpoint.url.split("/").filter(_.nonEmpty).toSeq
+      val segs = endpoint.path.split("/").filter(_.nonEmpty).toSeq
       try {
         // Combine all segments into an akka path
         val dir = segs.tail.foldLeft(segs.head.asInstanceOf[Any]) { (x, y) =>
@@ -52,7 +49,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
         // Add holders for query params if applicable
         currentPath = segCount match {
-          case 0 => emptyPath(endpoint.url)
+          case 0 if segs.size == 1 => p(endpoint.path) & provide(new AkkaHttpPathSegments {})
+          case 0 => p(dir.asInstanceOf[PathMatcher[Unit]]) & provide(new AkkaHttpPathSegments {})
           case 1 => p(dir.asInstanceOf[PathMatcher[Tuple1[String]]]).as(Holder1)
           case 2 => p(dir.asInstanceOf[PathMatcher[(String, String)]]).as(Holder2)
           case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
@@ -61,10 +59,10 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
-        addRoute(commandInnerDirective(new CommandBean, endpoint.url, AkkaHttpMethod.httpMethod(endpoint.method)))
+        addRoute(commandInnerDirective(new CommandBean, endpoint.path, AkkaHttpMethod.httpMethod(endpoint.method)))
       } catch {
         case ex: Throwable =>
-          log.error(s"Error adding path ${endpoint.url}", ex)
+          log.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
     }
@@ -82,7 +80,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
   override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
-    val entityClass = allPaths.find(e => url == e.url && method == e.method).flatMap(_.unmarshaller)
+    val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev)
@@ -97,4 +95,4 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 // Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params
 // can be input with $param, e.g. /endpoint/$param/accounts, method is an HTTP method, e.g. GET,
 // unmarshaller is a case class that can hold the extract of the json body input
-case class Endpoint(url: String, method: HttpMethod, unmarshaller: Option[Class[_]] = None)
+case class Endpoint(path: String, method: HttpMethod, unmarshaller: Option[Class[_]] = None)

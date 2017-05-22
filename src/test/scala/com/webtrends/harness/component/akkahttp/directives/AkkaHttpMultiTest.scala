@@ -21,7 +21,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
 
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(Endpoint("getTest", HttpMethods.GET),
-        Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])))
+        Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])),
+        Endpoint("two/strings", HttpMethods.GET))
       override def addRoute(r: Route): Unit =
         routes += r
       override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
@@ -32,6 +33,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(Some("getted".asInstanceOf[T])))
           case ("postTest", HttpMethods.POST) =>
             Future.successful(CommandResponse(bean.get.getValue[TestEntity](CommandBean.KeyEntity).map(_.asInstanceOf[T])))
+          case ("two/strings", HttpMethods.GET) =>
+            Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
         }
       }
 
@@ -47,6 +50,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     Post("/postTest", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[TestEntity] mustEqual entity
+    }
+    Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"getted2\""
     }
   }
 }
