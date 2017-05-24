@@ -1,6 +1,7 @@
 package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
@@ -17,7 +18,8 @@ import scala.util.{Failure, Success}
 
 case class AkkaHttpCommandResponse[T](data: Option[T],
                                       responseType: String = "_",
-                                      marshaller: Option[ToResponseMarshaller[T]] = None) extends BaseCommandResponse[T]
+                                      marshaller: Option[ToResponseMarshaller[T]] = None,
+                                      statusCode: Option[StatusCode] = None) extends BaseCommandResponse[T]
 
 
 case class AkkaHttpRejection(rejection: String)
@@ -77,15 +79,20 @@ trait AkkaHttpBase {
                     // Generic string Map of query params
                     outputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
                     onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
-                      case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _)) => route
-                      case Success(AkkaHttpCommandResponse(Some(data), _, None)) =>
-                        completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
-                      case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller))) =>
+                      case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
+                        route
+                      case Success(AkkaHttpCommandResponse(Some(data), _, None, sc)) =>
+                        val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                          fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                        completeWith(succMarshaller) { completeFunc =>
+                          completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data)) }
+                      case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
                         completeWith(marshaller) { completeFunc => completeFunc(data) }
-                      case Success(AkkaHttpCommandResponse(Some(unknown), _, _)) =>
+                      case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
                         log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                         complete(InternalServerError)
-                      case Success(AkkaHttpCommandResponse(None, _, _)) => complete(NoContent)
+                      case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
+                        complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
                       case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                         case (None, _) => complete(NoContent)
                         case (Some(data), _) =>
@@ -96,11 +103,11 @@ trait AkkaHttpBase {
                         complete(InternalServerError)
                       case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
                         val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                          fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
                         completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                       case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
                         val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
+                          fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
                         completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                       case Failure(f) =>
                         log.error(s"Command failed with $f")
