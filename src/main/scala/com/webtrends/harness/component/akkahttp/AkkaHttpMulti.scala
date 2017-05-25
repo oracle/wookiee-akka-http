@@ -32,6 +32,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
               segCount += 1
               (x match {
                 case p: String => p / Segment
+                case p: PathMatcher[Unit] if segCount == 1 => p / Segment
                 case p: PathMatcher[Tuple1[String]] => p / Segment
                 case p: PathMatcher[(String, String)] => p / Segment
                 case p: PathMatcher[(String, String, String)] => p / Segment
@@ -40,6 +41,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
             case s1: String =>
               (x match {
                 case p: String => p / s1
+                case p: PathMatcher[Unit] if segCount == 0 => p / Segment
                 case p: PathMatcher[Tuple1[String]] => p / s1
                 case p: PathMatcher[(String, String)] => p / s1
                 case p: PathMatcher[(String, String, String)] => p / s1

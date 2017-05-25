@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
 import com.webtrends.harness.component.akkahttp.util.TestEntity
-import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpMulti, Endpoint}
+import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
@@ -22,7 +22,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(Endpoint("getTest", HttpMethods.GET),
         Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])),
-        Endpoint("two/strings", HttpMethods.GET))
+        Endpoint("two/strings", HttpMethods.GET),
+        Endpoint("two/strings/$count", HttpMethods.GET),
+        Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET))
       override def addRoute(r: Route): Unit =
         routes += r
       override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
@@ -35,6 +37,12 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(bean.get.getValue[TestEntity](CommandBean.KeyEntity).map(_.asInstanceOf[T])))
           case ("two/strings", HttpMethods.GET) =>
             Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
+          case ("two/strings/$count", HttpMethods.GET) =>
+            Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+              holder.i1.asInstanceOf[T])))
+          case ("separated/$arg1/args/$arg2", HttpMethods.GET) =>
+            Future.successful(CommandResponse(bean.get.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
+              (holder.i1 + holder.i2).asInstanceOf[T])))
         }
       }
 
@@ -54,6 +62,12 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[String] mustEqual "\"getted2\""
+    }
+    Get("/two/strings/5") ~> routes.reduceLeft(_ ~ _) ~> check {
+      entityAs[String] mustEqual "\"5\""
+    }
+    Get("/separated/5/args/10") ~> routes.reduceLeft(_ ~ _) ~> check {
+      entityAs[String] mustEqual "\"510\""
     }
   }
 }
