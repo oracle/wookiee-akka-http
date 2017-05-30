@@ -61,6 +61,9 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
       path("ping") {
         complete(s"pong: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
       } ~
+      path("healthcheck") {
+        complete((healthActor ? HealthRequest(HealthResponseType.FULL)).mapTo[ApplicationHealth])
+      } ~
       pathPrefix("healthcheck") {
         path("lb") {
           complete((healthActor ? HealthRequest(HealthResponseType.LB)).mapTo[String])
