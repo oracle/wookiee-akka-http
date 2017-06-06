@@ -58,7 +58,7 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 
-    Get("/getTest") ~> routes.reduceLeft(_ ~ _) ~> check {
+    Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
     }
     val entity = TestEntity("meow", 0.1)
@@ -78,6 +78,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     }
     Get("/one/1/two/2/three/3/four") ~> routes.reduceLeft(_ ~ _) ~> check {
       entityAs[String] mustEqual "\"123\""
+    }
+    // trailing slash test
+    Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
     }
   }
 

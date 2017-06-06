@@ -73,7 +73,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Is changed to get past having to pass arguments to httpPath
   var currentPath: Directive1[AkkaHttpPathSegments] = p("default") & provide(new AkkaHttpPathSegments {})
   override def httpPath = {
-    currentPath
+    ignoreTrailingSlash & currentPath
   }
 
   // Overriding this so that child classes won't have to worry about it

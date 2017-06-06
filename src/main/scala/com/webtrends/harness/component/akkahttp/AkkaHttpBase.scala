@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.directives.PathDirectives
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
@@ -41,7 +42,7 @@ case class Holder3(i1: String, i2: String, i3: String) extends AkkaHttpPathSegme
 case class Holder4(i1: String, i2: String, i3: String, i4: String) extends AkkaHttpPathSegments
 case class Holder5(i1: String, i2: String, i3: String, i4: String, i5: String) extends AkkaHttpPathSegments
 
-trait AkkaHttpBase {
+trait AkkaHttpBase extends PathDirectives {
   this: BaseCommand =>
 
   def createRoutes(): Unit = addRoute(commandOuterDirective)
