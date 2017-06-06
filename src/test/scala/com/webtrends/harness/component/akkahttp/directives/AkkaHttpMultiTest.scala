@@ -27,7 +27,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])),
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/strings/$count", HttpMethods.GET),
-        Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET))
+        Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET),
+        Endpoint("one/$a1/two/$a2/three/$3/four", HttpMethods.GET))
       override def addRoute(r: Route): Unit =
         routes += r
       override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
@@ -46,6 +47,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           case ("separated/$arg1/args/$arg2", HttpMethods.GET) =>
             Future.successful(CommandResponse(bean.get.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
               (holder.i1 + holder.i2).asInstanceOf[T])))
+          case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
+            Future.successful(CommandResponse(bean.get.getValue[Holder3](AkkaHttpBase.Segments).map(holder =>
+              (holder.i1 + holder.i2 + holder.i3).asInstanceOf[T])))
         }
       }
 
@@ -54,7 +58,7 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 
-    Get("/getTest") ~> routes.reduceLeft(_ ~ _) ~> check {
+    Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
     }
     val entity = TestEntity("meow", 0.1)
@@ -71,6 +75,13 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     }
     Get("/separated/5/args/10") ~> routes.reduceLeft(_ ~ _) ~> check {
       entityAs[String] mustEqual "\"510\""
+    }
+    Get("/one/1/two/2/three/3/four") ~> routes.reduceLeft(_ ~ _) ~> check {
+      entityAs[String] mustEqual "\"123\""
+    }
+    // trailing slash test
+    Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
     }
   }
 

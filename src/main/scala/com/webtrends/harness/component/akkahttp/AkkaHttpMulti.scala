@@ -33,19 +33,19 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
               (x match {
                 case p: String => p / Segment
                 case p: PathMatcher[Unit] if segCount == 1 => p / Segment
-                case p: PathMatcher[Tuple1[String]] => p / Segment
-                case p: PathMatcher[(String, String)] => p / Segment
-                case p: PathMatcher[(String, String, String)] => p / Segment
-                case p: PathMatcher[(String, String, String, String)] => p / Segment
+                case p: PathMatcher[Tuple1[String]] if segCount == 2 => p / Segment
+                case p: PathMatcher[(String, String)] if segCount == 3 => p / Segment
+                case p: PathMatcher[(String, String, String)] if segCount == 4 => p / Segment
+                case p: PathMatcher[(String, String, String, String)] if segCount == 5 => p / Segment
               }).asInstanceOf[PathMatcher[_]]
             case s1: String =>
               (x match {
                 case p: String => p / s1
-                case p: PathMatcher[Unit] if segCount == 0 => p / Segment
-                case p: PathMatcher[Tuple1[String]] => p / s1
-                case p: PathMatcher[(String, String)] => p / s1
-                case p: PathMatcher[(String, String, String)] => p / s1
-                case p: PathMatcher[(String, String, String, String)] => p / s1
+                case p: PathMatcher[Unit] if segCount == 0 => p / s1
+                case p: PathMatcher[Tuple1[String]] if segCount == 1 => p / s1
+                case p: PathMatcher[(String, String)] if segCount == 2 => p / s1
+                case p: PathMatcher[(String, String, String)] if segCount == 3 => p / s1
+                case p: PathMatcher[(String, String, String, String)] if segCount == 4 => p / s1
               }).asInstanceOf[PathMatcher[_]]
           }
         }
@@ -73,7 +73,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Is changed to get past having to pass arguments to httpPath
   var currentPath: Directive1[AkkaHttpPathSegments] = p("default") & provide(new AkkaHttpPathSegments {})
   override def httpPath = {
-    currentPath
+    ignoreTrailingSlash & currentPath
   }
 
   // Overriding this so that child classes won't have to worry about it

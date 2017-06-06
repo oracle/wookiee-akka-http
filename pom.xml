@@ -17,7 +17,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.7</scala.version>
         <akka.version>2.5.0</akka.version>
-        <akka.http.version>10.0.5</akka.http.version>
+        <akka.http.version>10.0.7</akka.http.version>
         <wookiee.core.version>1.3.0</wookiee.core.version>
     </properties>
 
