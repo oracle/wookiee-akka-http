@@ -69,7 +69,7 @@ class AkkaHttpMarshallerTest extends FunSuite
           Future.successful(response)
         }
 
-         val m: ToResponseMarshaller[TestEntity] = Marshaller.StringMarshaller.wrap(MediaTypes.`text/csv`) { e: TestEntity =>
+        val m: ToResponseMarshaller[TestEntity] = Marshaller.StringMarshaller.wrap(MediaTypes.`text/csv`) { e: TestEntity =>
           s"""
              |v0,v1
              |${e.v0},${e.v1}""".stripMargin
