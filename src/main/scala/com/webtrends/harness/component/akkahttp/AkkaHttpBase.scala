@@ -1,12 +1,13 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
+import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.PathDirectives
+import akka.http.scaladsl.server.directives.BasicDirectives.cancelRejections
+import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
@@ -42,7 +43,7 @@ case class Holder3(i1: String, i2: String, i3: String) extends AkkaHttpPathSegme
 case class Holder4(i1: String, i2: String, i3: String, i4: String) extends AkkaHttpPathSegments
 case class Holder5(i1: String, i2: String, i3: String, i4: String, i5: String) extends AkkaHttpPathSegments
 
-trait AkkaHttpBase extends PathDirectives {
+trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   this: BaseCommand =>
 
   def createRoutes(): Unit = addRoute(commandOuterDirective)
@@ -51,7 +52,8 @@ trait AkkaHttpBase extends PathDirectives {
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
-  def httpMethod: Directive0 = get
+  def method: HttpMethod = HttpMethods.GET
+  def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
@@ -62,17 +64,17 @@ trait AkkaHttpBase extends PathDirectives {
 
   protected def commandInnerDirective[T <: AnyRef : Manifest](inputBean: CommandBean,
                                                               url: String = path,
-                                                              method: Directive0 = httpMethod) = {
+                                                              method: HttpMethod = method) = {
     httpPath { segments: AkkaHttpPathSegments =>
-      method {
-        httpParams { params: AkkaHttpParameters =>
-          parameterMap { paramMap: Map[String, String] =>
-            httpAuth { auth: AkkaHttpAuth =>
-              extractMethod { extMethod =>
-                beanDirective(inputBean, url, extMethod) { outputBean =>
-                  handleRejections(AkkaHttpBase.rejectionHandler) {
+      httpMethod(method) {
+        handleRejections(AkkaHttpBase.rejectionHandler) {
+          httpParams { params: AkkaHttpParameters =>
+            parameterMap { paramMap: Map[String, String] =>
+              httpAuth { auth: AkkaHttpAuth =>
+                extractMethod { extMethod =>
+                  beanDirective(inputBean, url, method) { outputBean =>
                     outputBean.addValue(AkkaHttpBase.Path, url)
-                    outputBean.addValue(AkkaHttpBase.Method, extMethod)
+                    outputBean.addValue(AkkaHttpBase.Method, method)
                     outputBean.addValue(AkkaHttpBase.Segments, segments)
                     // Query params that can be marshalled to a case class via httpParams
                     outputBean.addValue(AkkaHttpBase.Params, params)
@@ -86,7 +88,8 @@ trait AkkaHttpBase extends PathDirectives {
                         val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
                           fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
                         completeWith(succMarshaller) { completeFunc =>
-                          completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data)) }
+                          completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data))
+                        }
                       case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
                         completeWith(marshaller) { completeFunc => completeFunc(data) }
                       case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
@@ -138,7 +141,15 @@ object AkkaHttpBase {
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
 
-  val rejectionHandler: RejectionHandler = RejectionHandler
+  def httpMethod(method: HttpMethod): Directive0 = method match {
+    case HttpMethods.GET => get
+    case HttpMethods.PUT => put
+    case HttpMethods.POST => post
+    case HttpMethods.DELETE => delete
+    case HttpMethods.OPTIONS => options
+  }
+
+  def rejectionHandler: RejectionHandler = RejectionHandler
     .default
     .mapRejectionResponse {
       case res @ HttpResponse(s, _, HttpEntity.Strict(_, data), _) =>

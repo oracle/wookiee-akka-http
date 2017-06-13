@@ -139,4 +139,53 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       }
     }
   }
+
+  test("give 415 responses for bad json every time, instead of 405") {
+    val routes = Collections.synchronizedSet[Route](new java.util.LinkedHashSet[Route]())
+
+    new AkkaHttpMulti with BaseCommand {
+      override def allPaths = List(
+        Endpoint("same/path", HttpMethods.GET),
+        Endpoint("same/path", HttpMethods.POST, Some(classOf[TestEntity])),
+        Endpoint("same/path", HttpMethods.PUT, Some(classOf[TestEntity])),
+        Endpoint("same/path", HttpMethods.DELETE))
+
+      override def addRoute(r: Route): Unit =
+        routes.add(r)
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
+        val path = bean.get.getValue[String](AkkaHttpBase.Path).getOrElse("")
+        val method = bean.get.getValue[HttpMethod](AkkaHttpBase.Method).getOrElse(HttpMethods.GET)
+        (path, method) match {
+          case ("same/path", HttpMethods.POST) =>
+            Future.successful(CommandResponse(Some("POST".asInstanceOf[T])))
+          case ("same/path", HttpMethods.PUT) =>
+            Future.successful(CommandResponse(Some("PUT".asInstanceOf[T])))
+          case ("same/path", HttpMethods.DELETE) =>
+            Future.successful(CommandResponse(Some("DELETE".asInstanceOf[T])))
+          case ("same/path", HttpMethods.GET) =>
+            Future.successful(CommandResponse(Some("GET".asInstanceOf[T])))
+        }
+      }
+
+      override protected val log = Logger.getLogger(getClass)
+    }
+
+    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
+
+    Get("/same/path") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"GET\""
+    }
+    Post("/same/path", "badRequest") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.UnsupportedMediaType
+    }
+    Put("/same/path", "badRequest") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.UnsupportedMediaType
+    }
+    Delete("/same/path") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"DELETE\""
+    }
+  }
 }

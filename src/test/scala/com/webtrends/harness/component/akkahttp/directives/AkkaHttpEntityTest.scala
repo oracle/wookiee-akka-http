@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
-import akka.http.scaladsl.model.{ContentTypes, MediaTypes, StatusCodes}
+import akka.http.scaladsl.model.{ContentTypes, EntityStreamSizeException, MediaTypes, StatusCodes}
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.server.{MalformedRequestContentRejection, Route, UnsupportedRequestContentTypeRejection}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -88,9 +88,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
       import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 
       Post("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
-        inside(rejection) {
-          case MalformedRequestContentRejection(_, _) =>
-        }
+        status mustEqual StatusCodes.BadRequest
       }
     }
   }
@@ -123,7 +121,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
       }
 
       Put("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
-        rejection mustEqual UnsupportedRequestContentTypeRejection(Set(MediaTypes.`application/json`))
+        status mustEqual StatusCodes.UnsupportedMediaType
       }
     }
   }
@@ -156,9 +154,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
       }
 
       Put("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
-        inside(rejection) {
-          case MalformedRequestContentRejection(_, _) =>
-        }
+        status mustEqual StatusCodes.BadRequest
       }
     }
   }

@@ -4,7 +4,6 @@ import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
-import com.webtrends.harness.component.akkahttp.methods.AkkaHttpMethod
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -61,7 +60,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
-        addRoute(commandInnerDirective(new CommandBean, endpoint.path, AkkaHttpMethod.httpMethod(endpoint.method)))
+        addRoute(commandInnerDirective(new CommandBean, endpoint.path, endpoint.method))
       } catch {
         case ex: Throwable =>
           log.error(s"Error adding path ${endpoint.path}", ex)
@@ -78,6 +77,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Overriding this so that child classes won't have to worry about it
   override def path = ""
+
+  override def httpMethod(method: HttpMethod) = AkkaHttpBase.httpMethod(method)
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
