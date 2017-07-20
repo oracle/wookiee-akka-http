@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{BaseCommand, Command, CommandBean}
 
@@ -14,13 +15,14 @@ import scala.concurrent.Future
 trait AkkaHttpWebsocket extends BaseCommand with HActor {
   implicit val materializer = ActorMaterializer(None, None)(context)
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
-  def handleTextStream(ts: Source[String, _], bean: CommandBean): TextMessage = ???
+  def handleTextStream(ts: Source[String, _], bean: CommandBean): Option[TextMessage] = ???
   // Main handler for incoming messages
-  def handleText(text: String, bean: CommandBean): TextMessage
+  def handleText(text: String, bean: CommandBean): Option[TextMessage]
   // Main handler for incoming binary
-  def handleBinary(bm: BinaryMessage, bean: CommandBean): BinaryMessage = {
-    bm.dataStream.runWith(Sink.ignore)
-    bm
+  def handleBinary(bm: BinaryMessage, bean: CommandBean): Option[BinaryMessage] = {
+    handleText(bm.getStrictData.utf8String, bean).map { text =>
+      BinaryMessage(ByteString(text.getStrictText))
+    }
   }
 
   // Override if you want the TextMessage content to be left as a stream
@@ -31,12 +33,15 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
   def webSocketService(bean: CommandBean): Flow[Message, Message, Any] =
     Flow[Message].mapConcat {
       case tm: TextMessage ⇒
-        (if (isStreamingText)
+        val result = if (isStreamingText) {
           handleTextStream(tm.textStream, bean)
-        else
-          handleText(tm.getStrictText, bean)) :: Nil
+        } else {
+          handleText(tm.getStrictText, bean)
+        }
+        if (result.isDefined) result.get :: Nil else Nil
       case bm: BinaryMessage =>
-        handleBinary(bm, bean) :: Nil
+        val bin = handleBinary(bm, bean)
+        if (bin.isDefined) bin.get :: Nil else Nil
     }
 
   // Route used to send along our websocket messages and make the initial handshake
