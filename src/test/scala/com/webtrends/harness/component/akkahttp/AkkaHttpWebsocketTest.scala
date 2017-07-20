@@ -47,7 +47,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
           wsClient.expectMessage("Hello Peter! var1: friend")
 
           wsClient.sendMessage(BinaryMessage(ByteString("abcdef")))
-          wsClient.expectNoMessage(100.millis)
+          wsClient.expectMessage(ByteString("abcdef"))
 
           wsClient.sendMessage("John")
           wsClient.expectMessage("Hello John! var1: friend")

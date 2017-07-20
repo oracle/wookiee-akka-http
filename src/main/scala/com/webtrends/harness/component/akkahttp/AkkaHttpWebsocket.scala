@@ -36,24 +36,18 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
 
   def webSocketService(bean: CommandBean): Flow[Message, Message, Any] =
     Flow[Message].mapConcat {
-      // we match but don't actually consume the text message here,
-      // rather we simply stream it back as the tail of the response
-      // this means we might start sending the response even before the
-      // end of the incoming message has been received
       case tm: TextMessage ⇒
         (if (isStreamingText)
           handleTextStream(tm.textStream, bean)
         else
-          handleText(tm.getStrictText, bean)):: Nil
+          handleText(tm.getStrictText, bean)) :: Nil
       case bm: BinaryMessage =>
-        // ignore binary messages but drain content to avoid the stream being clogged
-        handleBinary(bm, bean)
-        Nil
+        handleBinary(bm, bean) :: Nil
     }
 
   // Http routing of the websocket request
   def requestHandler: PartialFunction[HttpRequest, HttpResponse] = {
-    case req @ HttpRequest(HttpMethods.GET, PathCheck(bean), _, _, _) ⇒
+    case req @ HttpRequest(HttpMethods.GET, PathCheck(bean), _, _, _) if req.header[UpgradeToWebSocket].isDefined ⇒
       req.header[UpgradeToWebSocket] match {
         case Some(upgrade) ⇒ upgrade.handleMessages(webSocketService(bean))
       }
