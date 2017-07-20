@@ -27,11 +27,15 @@ class TestWebsocket extends AkkaHttpWebsocket {
 class AkkaHttpWebsocketTest extends WordSpecLike
   with ScalatestRouteTest
   with MustMatchers {
-
+  // This should be all you need to get your routes for the WSProbe
+  // when making tests for your websocket classes
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
   val twsActor = system.actorOf(Props[TestWebsocket])
-  val webSocketService = Await.result((twsActor ? GetRoute()).mapTo[Route], Duration("5 seconds"))
+  // Wait for the actor to be up or routes will be empty
+  Await.result(system.actorSelection(twsActor.path).resolveOne(), Duration("5 seconds"))
   val routes = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  // End of setup
+
   "AkkaHttpWebsocket" should {
     "be able to take websocket input" in {
       // tests:

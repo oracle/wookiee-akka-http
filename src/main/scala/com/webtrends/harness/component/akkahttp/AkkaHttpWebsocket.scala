@@ -2,7 +2,7 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
-import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
@@ -10,8 +10,6 @@ import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{BaseCommand, Command, CommandBean}
 
 import scala.concurrent.Future
-
-case class GetRoute()
 
 trait AkkaHttpWebsocket extends BaseCommand with HActor {
   implicit val materializer = ActorMaterializer(None, None)(context)
@@ -29,11 +27,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
   def isStreamingText: Boolean = false
 
 
-  // Used by tests to get the route back
-  override def receive = super.receive orElse {
-    case GetRoute() => sender() ! webSocketRoute
-  }
-
+  // This the the main method to routes WS messages
   def webSocketService(bean: CommandBean): Flow[Message, Message, Any] =
     Flow[Message].mapConcat {
       case tm: TextMessage ⇒
@@ -45,7 +39,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
         handleBinary(bm, bean) :: Nil
     }
 
-  // Route used to hit websockets internally, intended for tests
+  // Route used to send along our websocket messages and make the initial handshake
   def webSocketRoute: Route = check { bean =>
     extractRequest { req =>
       handleWebSocketMessages(webSocketService(bean))
@@ -57,7 +51,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
     Future.successful(AkkaHttpCommandResponse(None))
   }
 
-  // Directive to check
+  // Directive to check out path for matches and extract params
   def check: Directive1[CommandBean] = {
     var bean: Option[CommandBean] = None
     val filt = extractUri.filter({ uri =>
