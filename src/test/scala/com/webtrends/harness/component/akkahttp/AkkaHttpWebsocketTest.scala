@@ -9,16 +9,17 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.pattern.ask
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
+import com.webtrends.harness.command.CommandBean
 import org.scalatest.{MustMatchers, WordSpecLike}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class TestWebsocket extends AkkaHttpWebsocket {
-  override def path = "greeter"
+  override def path = "greeter/$var1"
 
-  override def handleText(text: String): TextMessage = {
-    TextMessage(Source.single("Hello " + text + "!"))
+  override def handleText(text: String, bean: CommandBean): TextMessage = {
+    TextMessage(Source.single(s"Hello $text! var1: ${bean("var1")}"))
   }
 }
 
@@ -36,20 +37,20 @@ class AkkaHttpWebsocketTest extends WordSpecLike
       // create a testing probe representing the client-side
       val wsClient = WSProbe()
       // WS creates a WebSocket request for testing
-      WS("/greeter", wsClient.flow) ~> webSocketService ~>
+      WS("/greeter/friend", wsClient.flow) ~> webSocketService ~>
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true
 
           // manually run a WS conversation
           wsClient.sendMessage("Peter")
-          wsClient.expectMessage("Hello Peter!")
+          wsClient.expectMessage("Hello Peter! var1: friend")
 
           wsClient.sendMessage(BinaryMessage(ByteString("abcdef")))
           wsClient.expectNoMessage(100.millis)
 
           wsClient.sendMessage("John")
-          wsClient.expectMessage("Hello John!")
+          wsClient.expectMessage("Hello John! var1: friend")
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()
