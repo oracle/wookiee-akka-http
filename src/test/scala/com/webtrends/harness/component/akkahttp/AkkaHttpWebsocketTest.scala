@@ -10,6 +10,7 @@ import akka.pattern.ask
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
 import com.webtrends.harness.command.CommandBean
+import akka.http.scaladsl.server.Directives._
 import org.scalatest.{MustMatchers, WordSpecLike}
 
 import scala.concurrent.Await
@@ -30,14 +31,14 @@ class AkkaHttpWebsocketTest extends WordSpecLike
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
   val twsActor = system.actorOf(Props[TestWebsocket])
   val webSocketService = Await.result((twsActor ? GetRoute()).mapTo[Route], Duration("5 seconds"))
-
+  val routes = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   "AkkaHttpWebsocket" should {
     "be able to take websocket input" in {
       // tests:
       // create a testing probe representing the client-side
       val wsClient = WSProbe()
       // WS creates a WebSocket request for testing
-      WS("/greeter/friend", wsClient.flow) ~> webSocketService ~>
+      WS("/greeter/friend", wsClient.flow) ~> routes ~>
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true

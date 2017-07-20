@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.akkahttp
 
-import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, UpgradeToWebSocket}
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest, HttpResponse, Uri}
+import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
@@ -45,14 +45,6 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
         handleBinary(bm, bean) :: Nil
     }
 
-  // Http routing of the websocket request
-  def requestHandler: PartialFunction[HttpRequest, HttpResponse] = {
-    case req @ HttpRequest(HttpMethods.GET, PathCheck(bean), _, _, _) if req.header[UpgradeToWebSocket].isDefined ⇒
-      req.header[UpgradeToWebSocket] match {
-        case Some(upgrade) ⇒ upgrade.handleMessages(webSocketService(bean))
-      }
-  }
-
   // Route used to hit websockets internally, intended for tests
   def webSocketRoute: Route = check { bean =>
     extractRequest { req =>
@@ -83,4 +75,6 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
       Command.matchPath(test.path.toString(), path)
     }
   }
+
+  ExternalAkkaHttpRouteContainer.addRoute(webSocketRoute)
 }
