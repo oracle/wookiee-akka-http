@@ -22,6 +22,8 @@ class TestWebsocket extends AkkaHttpWebsocket {
   override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
     Some(TextMessage(s"Hello $text! var1: ${bean("var1")}"))
   }
+
+  override def commandName = "TestWebsocket"
 }
 
 class TestWebsocketLong extends AkkaHttpWebsocket {
@@ -31,6 +33,8 @@ class TestWebsocketLong extends AkkaHttpWebsocket {
     if (text == "empty") None
     else Some(TextMessage(Source.single(s"$text! ${bean("var1")} ${bean("var2")} ${bean("var3")}")))
   }
+
+  override def commandName = "TestWebsocketLong"
 }
 
 class TestWebsocketStream extends AkkaHttpWebsocket {
@@ -45,6 +49,7 @@ class TestWebsocketStream extends AkkaHttpWebsocket {
   override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = None
 
   override def isStreamingText = true
+  override def commandName = "TestWebsocketStream"
 }
 
 class TestWebsocketClose extends AkkaHttpWebsocket {
@@ -58,6 +63,7 @@ class TestWebsocketClose extends AkkaHttpWebsocket {
   override def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]) = {
     ClosedObject.closed = true
   }
+  override def commandName = "TestWebsocketClose"
 }
 
 object ClosedObject {

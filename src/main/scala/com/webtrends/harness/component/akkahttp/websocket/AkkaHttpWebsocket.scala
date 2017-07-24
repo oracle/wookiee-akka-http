@@ -8,12 +8,12 @@ import akka.http.scaladsl.server._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import com.webtrends.harness.app.HActor
-import com.webtrends.harness.command.{BaseCommand, Command, CommandBean}
+import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.{AkkaHttpCommandResponse, ExternalAkkaHttpRouteContainer}
 
 import scala.concurrent.Future
 
-trait AkkaHttpWebsocket extends BaseCommand with HActor {
+trait AkkaHttpWebsocket extends Command with HActor {
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
