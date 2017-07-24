@@ -53,7 +53,7 @@ class TestWebsocketClose extends AkkaHttpWebsocket {
     Some(TextMessage("Close Actor"))
   }
 
-  override def closeWebsocket(bean: CommandBean, callback: Option[ActorRef]) = {
+  override def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]) = {
     ClosedObject.closed = true
   }
 }
@@ -167,7 +167,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()
-
+          Thread.sleep(300)
           ClosedObject.closed mustEqual true
         }
     }

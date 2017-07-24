@@ -26,7 +26,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
   def isStreamingText: Boolean = false
 
   // Override for websocket closure code, callback will be None if we aren't connected yet
-  def closeWebsocket(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
+  def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
 
   // End standard overrides
   // Props for out SocketActor
@@ -101,7 +101,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
       case Connect(actor, isStreamingText) =>
         context become open(actor, isStreamingText)
       case CloseSocket(bean) =>
-        closeWebsocket(bean, None)
+        onWebsocketClose(bean, None)
         context.stop(self)
     }
 
@@ -113,7 +113,7 @@ trait AkkaHttpWebsocket extends BaseCommand with HActor {
         val returnText = handleText(tmb._1.getStrictText, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
       case CloseSocket(bean) =>
-        closeWebsocket(bean, Some(retActor))
+        onWebsocketClose(bean, Some(retActor))
         context.stop(self)
     }
   }
