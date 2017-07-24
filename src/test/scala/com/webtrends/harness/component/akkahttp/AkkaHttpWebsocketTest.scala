@@ -117,7 +117,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
             isWebSocketUpgrade mustEqual true
             false mustEqual true
           } catch {
-            case ex: Throwable => // Expected to fail
+            case _: Throwable => // Expected to fail
           }
         }
     }
