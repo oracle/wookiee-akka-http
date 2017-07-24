@@ -6,6 +6,7 @@ import akka.actor.{ActorRef, Props}
 import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import akka.util.{ByteString, Timeout}
 import com.webtrends.harness.command.CommandBean
@@ -47,6 +48,7 @@ class TestWebsocketStream extends AkkaHttpWebsocket {
 }
 
 class TestWebsocketClose extends AkkaHttpWebsocket {
+  override implicit def materializer = ActorMaterializer(None, None)(context)
   override def path = "close"
 
   override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = {

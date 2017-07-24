@@ -14,7 +14,7 @@ import com.webtrends.harness.component.akkahttp.{AkkaHttpCommandResponse, Extern
 import scala.concurrent.Future
 
 trait AkkaHttpWebsocket extends BaseCommand with HActor {
-  implicit val materializer = ActorMaterializer(None, None)(context)
+  implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
   def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = ???
