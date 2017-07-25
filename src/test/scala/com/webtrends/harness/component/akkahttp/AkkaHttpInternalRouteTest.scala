@@ -17,7 +17,7 @@ class AkkaHttpInternalRouteTest extends FunSuite
   with ScalatestRouteTest {
 
   test("Internal routes should not appear in external http server") {
-
+    val extRoutes = ExternalAkkaHttpRouteContainer.getRoutes
     new AkkaHttpGet with AkkaHttpInternal with TestBaseCommand {
       override def path: String = "test"
 
@@ -26,7 +26,7 @@ class AkkaHttpInternalRouteTest extends FunSuite
       }
     }
 
-    ExternalAkkaHttpRouteContainer.isEmpty mustEqual true
+    ExternalAkkaHttpRouteContainer.getRoutes.size mustEqual extRoutes.size
     InternalAkkaHttpRouteContainer.isEmpty mustEqual false
     InternalAkkaHttpRouteContainer.getRoutes.size mustEqual 1
   }
