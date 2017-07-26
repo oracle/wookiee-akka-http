@@ -2,11 +2,11 @@ package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.javadsl.server.RequestEntityExpectedRejection
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
-import akka.http.scaladsl.server.{Directive, Directive0, Directive1, RequestEntityExpectedRejection}
+import akka.http.scaladsl.server.Directives.{entity, _}
+import akka.http.scaladsl.server.{Directive, Directive1}
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase
-import akka.http.scaladsl.server.Directives.{entity, _}
 
 trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
   this: BaseCommand =>
