@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.BasicDirectives.cancelRejections
 import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
@@ -54,6 +53,12 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def method: HttpMethod = HttpMethods.GET
   def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
+  def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
+    case AkkaHttpException(msg, statusCode, headers, Some(marshaller)) =>
+      val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+        fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+      completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+  }
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
@@ -68,54 +73,56 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
     httpPath { segments: AkkaHttpPathSegments =>
       httpMethod(method) {
         handleRejections(AkkaHttpBase.rejectionHandler) {
-          httpParams { params: AkkaHttpParameters =>
-            parameterMap { paramMap: Map[String, String] =>
-              httpAuth { auth: AkkaHttpAuth =>
-                extractMethod { extMethod =>
-                  beanDirective(inputBean, url, method) { outputBean =>
-                    outputBean.addValue(AkkaHttpBase.Path, url)
-                    outputBean.addValue(AkkaHttpBase.Method, method)
-                    outputBean.addValue(AkkaHttpBase.Segments, segments)
-                    // Query params that can be marshalled to a case class via httpParams
-                    outputBean.addValue(AkkaHttpBase.Params, params)
-                    outputBean.addValue(AkkaHttpBase.Auth, auth)
-                    // Generic string Map of query params
-                    outputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
-                    onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
-                      case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
-                        route
-                      case Success(AkkaHttpCommandResponse(Some(data), _, None, sc)) =>
-                        val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
-                        completeWith(succMarshaller) { completeFunc =>
-                          completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data))
+          handleExceptions(exceptionHandler[T]) {
+            httpParams { params: AkkaHttpParameters =>
+              parameterMap { paramMap: Map[String, String] =>
+                httpAuth { auth: AkkaHttpAuth =>
+                  extractMethod { extMethod =>
+                    beanDirective(inputBean, url, method) { outputBean =>
+                      outputBean.addValue(AkkaHttpBase.Path, url)
+                      outputBean.addValue(AkkaHttpBase.Method, method)
+                      outputBean.addValue(AkkaHttpBase.Segments, segments)
+                      // Query params that can be marshalled to a case class via httpParams
+                      outputBean.addValue(AkkaHttpBase.Params, params)
+                      outputBean.addValue(AkkaHttpBase.Auth, auth)
+                      // Generic string Map of query params
+                      outputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
+                      onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
+                        case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
+                          route
+                        case Success(AkkaHttpCommandResponse(Some(data), _, None, sc)) =>
+                          val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                          completeWith(succMarshaller) { completeFunc =>
+                            completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data))
+                          }
+                        case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
+                          completeWith(marshaller) { completeFunc => completeFunc(data) }
+                        case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
+                          log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                          complete(InternalServerError)
+                        case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
+                          complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
+                        case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
+                          case (None, _) => complete(NoContent)
+                          case (Some(data), _) =>
+                            completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                         }
-                      case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
-                        completeWith(marshaller) { completeFunc => completeFunc(data) }
-                      case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
-                        log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
-                        complete(InternalServerError)
-                      case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
-                        complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
-                      case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
-                        case (None, _) => complete(NoContent)
-                        case (Some(data), _) =>
-                          completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
+                        case Success(unknownResponse) =>
+                          log.error(s"Got unknown response $unknownResponse")
+                          complete(InternalServerError)
+                        case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
+                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                        case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
+                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                            fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
+                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                        case Failure(f) =>
+                          log.error(s"Command failed with $f")
+                          complete(InternalServerError)
                       }
-                      case Success(unknownResponse) =>
-                        log.error(s"Got unknown response $unknownResponse")
-                        complete(InternalServerError)
-                      case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
-                        val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
-                        completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
-                      case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
-                        val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                          fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
-                        completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
-                      case Failure(f) =>
-                        log.error(s"Command failed with $f")
-                        complete(InternalServerError)
                     }
                   }
                 }

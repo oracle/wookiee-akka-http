@@ -1,9 +1,9 @@
 package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
-import akka.http.scaladsl.model.{ContentTypes, EntityStreamSizeException, MediaTypes, StatusCodes}
+import akka.http.scaladsl.model.{ContentTypes, MediaTypes, StatusCodes}
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
-import akka.http.scaladsl.server.{MalformedRequestContentRejection, Route, UnsupportedRequestContentTypeRejection}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
@@ -17,9 +17,7 @@ import org.scalatest.{FunSuite, Inside, MustMatchers}
 import scala.concurrent.Future
 
 class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers with ScalatestRouteTest with Inside {
-
-
-  val gen = for {
+    val gen = for {
     v0 <- Arbitrary.arbitrary[String]
     v1 <- Arbitrary.arbitrary[Double]
   } yield TestEntity(v0, v1)
@@ -58,6 +56,32 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         contentType mustEqual ContentTypes.`application/json`
         entityAs[TestEntity] mustEqual entity
       }
+    }
+  }
+
+  test("should not break when input content is empty") {
+    var routes = Set.empty[Route]
+
+    new AkkaHttpPost with AkkaHttpEntity[TestEntity] with TestBaseCommand {
+
+      override def ev: Manifest[TestEntity] = Manifest.classType(classOf[TestEntity])
+
+      override def path: String = "test"
+
+      override def addRoute(r: Route): Unit = routes += r
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
+        val e = getEntity[TestEntity](bean.get)
+        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), "text/plain", statusCode = Some(StatusCodes.OK))
+        Future.successful(response)
+      }
+    }
+
+    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
+
+    Post("/test", content = None) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"return\""
     }
   }
 
