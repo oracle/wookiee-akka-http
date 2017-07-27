@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp
+package com.webtrends.harness.component.akkahttp.routes
 
 import java.util.Collections
 

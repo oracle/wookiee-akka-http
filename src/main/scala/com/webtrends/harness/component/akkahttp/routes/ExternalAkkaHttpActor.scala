@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp
+package com.webtrends.harness.component.akkahttp.routes
 
 import akka.actor.Props
 import akka.http.scaladsl.Http
@@ -9,6 +9,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.component.StopComponent
+import com.webtrends.harness.component.akkahttp.ExternalAkkaHttpSettings
 
 import scala.util.{Failure, Success}
 
@@ -19,11 +20,11 @@ object ExternalAkkaHttpActor {
 }
 
 class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettings) extends HActor {
-
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
   implicit val materializer = ActorMaterializer()
 
+  def serverName = "akka-http external-server"
   val serverSource = Http().bind(interface, port, settings = settings)
 
   val bindingFuture = serverSource
@@ -32,7 +33,7 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   bindingFuture.onComplete {
     case Success(s) =>
-      log.info(s"akka-http external-server bound to port $port on interface $interface")
+      log.info(s"$serverName bound to port $port on interface $interface")
     case Failure(f) =>
       log.error(s"Failed to bind akka-http external-server: $f")
   }

@@ -10,11 +10,12 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
 import com.webtrends.harness.component.akkahttp.util.TestEntity
 import com.webtrends.harness.component.akkahttp._
+import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
-import scala.collection.JavaConversions._
 
+import scala.collection.JavaConversions._
 import scala.concurrent.Future
 
 
@@ -43,13 +44,13 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
           case ("two/strings/$count", HttpMethods.GET) =>
             Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-              holder.i1.asInstanceOf[T])))
+              holder._1.asInstanceOf[T])))
           case ("separated/$arg1/args/$arg2", HttpMethods.GET) =>
             Future.successful(CommandResponse(bean.get.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
-              (holder.i1 + holder.i2).asInstanceOf[T])))
+              (holder._1 + holder._2).asInstanceOf[T])))
           case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
             Future.successful(CommandResponse(bean.get.getValue[Holder3](AkkaHttpBase.Segments).map(holder =>
-              (holder.i1 + holder.i2 + holder.i3).asInstanceOf[T])))
+              (holder._1 + holder._2 + holder._3).asInstanceOf[T])))
         }
       }
 
@@ -107,12 +108,12 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
               Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
             case ("two/$arg", HttpMethods.GET) =>
               Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-                holder.i1.asInstanceOf[T])))
+                holder._1.asInstanceOf[T])))
             case ("one/strings", HttpMethods.GET) =>
               Future.successful(CommandResponse(Some("getted1".asInstanceOf[T])))
             case ("one/$arg", HttpMethods.GET) =>
               Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-                holder.i1.asInstanceOf[T])))
+                holder._1.asInstanceOf[T])))
           }
         }
 

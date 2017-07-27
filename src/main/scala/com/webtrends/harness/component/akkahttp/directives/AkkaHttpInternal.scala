@@ -2,7 +2,8 @@ package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.server.Route
 import com.webtrends.harness.command.BaseCommand
-import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, InternalAkkaHttpRouteContainer}
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase
+import com.webtrends.harness.component.akkahttp.routes.InternalAkkaHttpRouteContainer
 
 trait AkkaHttpInternal extends AkkaHttpBase {
   this: BaseCommand =>
