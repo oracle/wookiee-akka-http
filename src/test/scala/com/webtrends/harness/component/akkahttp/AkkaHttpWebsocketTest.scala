@@ -10,6 +10,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import akka.util.{ByteString, Timeout}
 import com.webtrends.harness.command.CommandBean
+import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 import com.webtrends.harness.component.akkahttp.websocket.AkkaHttpWebsocket
 import org.scalatest.{MustMatchers, WordSpecLike}
 
@@ -85,7 +86,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
   Await.result(system.actorSelection(twsActorLong.path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(twsActorStream.path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(twsActorClose.path).resolveOne(), Duration("5 seconds"))
-  val routes = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  val routes = WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   // End of setup
 
   "AkkaHttpWebsocket" should {

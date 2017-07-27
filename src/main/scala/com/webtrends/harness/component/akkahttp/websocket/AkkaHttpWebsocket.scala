@@ -9,7 +9,8 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
-import com.webtrends.harness.component.akkahttp.{AkkaHttpCommandResponse, ExternalAkkaHttpRouteContainer}
+import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
+import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 
 import scala.concurrent.Future
 
@@ -119,5 +120,5 @@ trait AkkaHttpWebsocket extends Command with HActor {
   }
 
   log.info(s"Adding Websocket on path $path to routes")
-  ExternalAkkaHttpRouteContainer.addRoute(webSocketRoute)
+  WebsocketAkkaHttpRouteContainer.addRoute(webSocketRoute)
 }

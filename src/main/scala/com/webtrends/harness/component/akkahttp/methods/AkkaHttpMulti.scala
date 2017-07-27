@@ -1,9 +1,10 @@
-package com.webtrends.harness.component.akkahttp
+package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
+import com.webtrends.harness.component.akkahttp._
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -83,6 +84,19 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
   override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
+    // Grab all segments from the URI and put them directly on the bean
+    val segs = bean.getValue[String](AkkaHttpBase.Path).getOrElse("").split("/").filter(_.startsWith("$"))
+    def addIfPresent(index: Int, value: String): Unit = {
+      if (index < segs.length) bean.addValue(segs(index).drop(1), value)
+    }
+    bean.get(AkkaHttpBase.Segments).collect {
+      case prod: Product =>
+        prod.productIterator.zipWithIndex.foreach {
+          case (a, i) => addIfPresent(i, a.toString)
+        }
+      case _ => // Do nothing
+    }
+    // Do the unmarshalling of the request
     val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)

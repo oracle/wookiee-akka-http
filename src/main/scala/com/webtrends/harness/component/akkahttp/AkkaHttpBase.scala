@@ -10,6 +10,7 @@ import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
@@ -36,11 +37,13 @@ trait AkkaHttpPathSegments
 trait AkkaHttpAuth
 
 // Use these to generically extract values from a query string
-case class Holder1(i1: String) extends AkkaHttpPathSegments
-case class Holder2(i1: String, i2: String) extends AkkaHttpPathSegments
-case class Holder3(i1: String, i2: String, i3: String) extends AkkaHttpPathSegments
-case class Holder4(i1: String, i2: String, i3: String, i4: String) extends AkkaHttpPathSegments
-case class Holder5(i1: String, i2: String, i3: String, i4: String, i5: String) extends AkkaHttpPathSegments
+case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
+case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
+case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
+case class Holder4(_1: String, _2: String, _3: String, _4: String)
+  extends Product4[String, String, String, String] with AkkaHttpPathSegments
+case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
+  extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
 
 trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   this: BaseCommand =>
@@ -78,15 +81,15 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
                   extractMethod { extMethod =>
+                    inputBean.addValue(AkkaHttpBase.Path, url)
+                    inputBean.addValue(AkkaHttpBase.Method, method)
+                    inputBean.addValue(AkkaHttpBase.Segments, segments)
+                    // Query params that can be marshalled to a case class via httpParams
+                    inputBean.addValue(AkkaHttpBase.Params, params)
+                    inputBean.addValue(AkkaHttpBase.Auth, auth)
+                    // Generic string Map of query params
+                    inputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
-                      outputBean.addValue(AkkaHttpBase.Path, url)
-                      outputBean.addValue(AkkaHttpBase.Method, method)
-                      outputBean.addValue(AkkaHttpBase.Segments, segments)
-                      // Query params that can be marshalled to a case class via httpParams
-                      outputBean.addValue(AkkaHttpBase.Params, params)
-                      outputBean.addValue(AkkaHttpBase.Auth, auth)
-                      // Generic string Map of query params
-                      outputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                         case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
                           route

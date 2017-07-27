@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014. Webtrends (http://www.webtrends.com)
  */
-package com.webtrends.harness.component.akkahttp
+package com.webtrends.harness.component.akkahttp.routes
 
 import akka.actor.Props
 import akka.http.scaladsl.Http
@@ -14,6 +14,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import com.webtrends.harness.HarnessConstants
 import com.webtrends.harness.app.{HActor, Harness}
+import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.messages.StatusRequest
 import com.webtrends.harness.component.{ComponentHelper, ComponentRequest, StopComponent}
 import com.webtrends.harness.health._
