@@ -17,6 +17,30 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
+  // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
+  // where # is the number of variable segments on the URI
+  def getURIParams[T <: AkkaHttpPathSegments](bean: CommandBean): T = {
+    val segs = bean.get(AkkaHttpBase.Segments)
+    segs match {
+      case Some(s) =>
+        s match {
+          case t: T => t
+          case _ =>
+            throw new IllegalStateException(s"${s.getClass} is not a subclass of AkkaHttpPathSegments")
+        }
+      case None =>
+        throw new IllegalStateException(s"No URI Segments found for this request")
+    }
+  }
+
+  // Can grab the body with this
+  def getPayload[T](bean: CommandBean): Option[T] =
+    bean.getValue[T](CommandBean.KeyEntity)
+
+  // Get params that were put on the end of the query (past the ?)
+  def getQueryParams(bean: CommandBean): Map[String, String] =
+    bean.getValue[Map[String, String]](AkkaHttpBase.QueryParams).getOrElse(Map.empty[String, String])
+
   // TODO: Add support for inputs of specific types, instead of treating every segment as a string
   // Method that adds all routes from allPaths
   override def createRoutes() = {
@@ -96,6 +120,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
       case _ => // Do nothing
     }
+    // Add query params onto the bean directly
+    getQueryParams(bean).foreach(keyVal => bean.addValue(keyVal._1, keyVal._2))
     // Do the unmarshalling of the request
     val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
