@@ -20,6 +20,7 @@ import scala.concurrent.Future
 
 
 class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers with ScalatestRouteTest with PredefinedToEntityMarshallers {
+
   test("should handle multiple endpoints") {
     var routes = Set.empty[Route]
 
@@ -37,9 +38,11 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         val method = bean.get.getValue[HttpMethod](AkkaHttpBase.Method).getOrElse(HttpMethods.GET)
         (path, method) match {
           case ("getTest", HttpMethods.GET) =>
-            Future.successful(CommandResponse(Some("getted".asInstanceOf[T])))
+            val meowVal = getQueryParams(bean.get).getOrElse("meow", "")
+            Future.successful(CommandResponse(Some(s"getted$meowVal".asInstanceOf[T])))
           case ("postTest", HttpMethods.POST) =>
-            Future.successful(CommandResponse(bean.get.getValue[TestEntity](CommandBean.KeyEntity).map(_.asInstanceOf[T])))
+            val payload = getPayload[TestEntity](bean.get)
+            Future.successful(CommandResponse(payload.map(_.asInstanceOf[T])))
           case ("two/strings", HttpMethods.GET) =>
             Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
           case ("two/strings/$count", HttpMethods.GET) =>
@@ -49,8 +52,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(bean.get.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
               (holder._1 + holder._2).asInstanceOf[T])))
           case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
-            Future.successful(CommandResponse(bean.get.getValue[Holder3](AkkaHttpBase.Segments).map(holder =>
-              (holder._1 + holder._2 + holder._3).asInstanceOf[T])))
+            val params = getURIParams[Holder3](bean.get)
+            Future.successful(CommandResponse(Some((params._1 + params._2 + params._3).asInstanceOf[T])))
         }
       }
 
@@ -61,6 +64,11 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
 
     Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"getted\""
+    }
+    Get("/getTest/?meow=true") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"gettedtrue\""
     }
     val entity = TestEntity("meow", 0.1)
     Post("/postTest", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
