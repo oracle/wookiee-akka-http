@@ -41,8 +41,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             val meowVal = getQueryParams(bean.get).getOrElse("meow", "")
             Future.successful(CommandResponse(Some(s"getted$meowVal".asInstanceOf[T])))
           case ("postTest", HttpMethods.POST) =>
+            val meowVal = bean.get.getValue[String]("meow").getOrElse("")
             val payload = getPayload[TestEntity](bean.get)
-            Future.successful(CommandResponse(payload.map(_.asInstanceOf[T])))
+            val load = payload.map(te => te.copy(te.v0 + meowVal, te.v1))
+            Future.successful(CommandResponse(load.map(_.asInstanceOf[T])))
           case ("two/strings", HttpMethods.GET) =>
             Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
           case ("two/strings/$count", HttpMethods.GET) =>
@@ -74,6 +76,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     Post("/postTest", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[TestEntity] mustEqual entity
+    }
+    Post("/postTest?meow=test", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[TestEntity] mustEqual TestEntity("meowtest", 0.1)
     }
     Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK

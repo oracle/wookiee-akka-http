@@ -120,6 +120,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
       case _ => // Do nothing
     }
+    // Add query params onto the bean directly
+    getQueryParams(bean).foreach(keyVal => bean.addValue(keyVal._1, keyVal._2))
     // Do the unmarshalling of the request
     val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
     if (entityClass.isDefined) {
