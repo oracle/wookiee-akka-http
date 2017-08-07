@@ -44,6 +44,8 @@ case class Holder4(_1: String, _2: String, _3: String, _4: String)
   extends Product4[String, String, String, String] with AkkaHttpPathSegments
 case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
   extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
+  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
 trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   this: BaseCommand =>

@@ -64,6 +64,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
                 case p: PathMatcher[(String, String)] if segCount == 3 => p / Segment
                 case p: PathMatcher[(String, String, String)] if segCount == 4 => p / Segment
                 case p: PathMatcher[(String, String, String, String)] if segCount == 5 => p / Segment
+                case p: PathMatcher[(String, String, String, String, String)] if segCount == 6 => p / Segment
               }).asInstanceOf[PathMatcher[_]]
             case s1: String =>
               (x match {
@@ -76,6 +77,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
                 case p: PathMatcher[(String, String)] if segCount == 2 => p / s1
                 case p: PathMatcher[(String, String, String)] if segCount == 3 => p / s1
                 case p: PathMatcher[(String, String, String, String)] if segCount == 4 => p / s1
+                case p: PathMatcher[(String, String, String, String, String)] if segCount == 5 => p / s1
               }).asInstanceOf[PathMatcher[_]]
           }
         }
@@ -88,6 +90,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
           case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
           case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
+          case 6 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String, String)]]).as(Holder6)
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
