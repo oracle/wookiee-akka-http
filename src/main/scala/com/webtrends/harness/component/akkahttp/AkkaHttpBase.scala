@@ -74,9 +74,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                                                               url: String = path,
                                                               method: HttpMethod = method) = {
     httpPath { segments: AkkaHttpPathSegments =>
-      inputBean.addValue(AkkaHttpBase.Path, url)
-      inputBean.addValue(AkkaHttpBase.Segments, segments)
       httpMethod(method) {
+        inputBean.addValue(AkkaHttpBase.Path, url)
+        inputBean.addValue(AkkaHttpBase.Segments, segments)
         inputBean.addValue(AkkaHttpBase.Method, method)
         handleRejections(AkkaHttpBase.rejectionHandler) {
           handleExceptions(exceptionHandler[T]) {
