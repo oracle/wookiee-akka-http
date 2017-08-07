@@ -23,7 +23,7 @@
 
     <groupId>com.webtrends</groupId>
     <artifactId>wookiee-akka-http</artifactId>
-    <version>1.3-SNAPSHOT</version>
+    <version>1.4-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>wookiee-akka-http</name>
 

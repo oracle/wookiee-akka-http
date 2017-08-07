@@ -30,7 +30,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/strings/$count", HttpMethods.GET),
         Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET),
-        Endpoint("one/$a1/two/$a2/three/$3/four", HttpMethods.GET))
+        Endpoint("one/$a1/two/$a2/three/$3/four", HttpMethods.GET),
+        Endpoint("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET))
       override def addRoute(r: Route): Unit =
         routes += r
       override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
@@ -56,6 +57,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
             val params = getURIParams[Holder3](bean.get)
             Future.successful(CommandResponse(Some((params._1 + params._2 + params._3).asInstanceOf[T])))
+          case ("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET) =>
+            val params = getURIParams[Holder6](bean.get)
+            Future.successful(CommandResponse(Some((bean.get("ver") + params._2 + params._3 + params._4 + bean.get("four") + params._6).asInstanceOf[T])))
         }
       }
 
@@ -97,6 +101,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     // trailing slash test
     Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
+    }
+    Get("/v1/one/1/two/2/three/3/4/final") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"v11234final\""
     }
   }
 

@@ -2,7 +2,7 @@ package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
-import akka.http.scaladsl.server.{Directive1, PathMatcher}
+import akka.http.scaladsl.server.{Directive1, PathMatcher, PathMatchers}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
 
@@ -55,21 +55,29 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
             case s1: String if s1.startsWith("$") =>
               segCount += 1
               (x match {
-                case p: String => p / Segment
+                case p: String => if (p.startsWith("$")) {
+                  segCount += 1
+                  Segment / Segment
+                } else p / Segment
                 case p: PathMatcher[Unit] if segCount == 1 => p / Segment
                 case p: PathMatcher[Tuple1[String]] if segCount == 2 => p / Segment
                 case p: PathMatcher[(String, String)] if segCount == 3 => p / Segment
                 case p: PathMatcher[(String, String, String)] if segCount == 4 => p / Segment
                 case p: PathMatcher[(String, String, String, String)] if segCount == 5 => p / Segment
+                case p: PathMatcher[(String, String, String, String, String)] if segCount == 6 => p / Segment
               }).asInstanceOf[PathMatcher[_]]
             case s1: String =>
               (x match {
-                case p: String => p / s1
+                case p: String => if (p.startsWith("$")) {
+                  segCount += 1
+                  Segment / s1
+                } else p / s1
                 case p: PathMatcher[Unit] if segCount == 0 => p / s1
                 case p: PathMatcher[Tuple1[String]] if segCount == 1 => p / s1
                 case p: PathMatcher[(String, String)] if segCount == 2 => p / s1
                 case p: PathMatcher[(String, String, String)] if segCount == 3 => p / s1
                 case p: PathMatcher[(String, String, String, String)] if segCount == 4 => p / s1
+                case p: PathMatcher[(String, String, String, String, String)] if segCount == 5 => p / s1
               }).asInstanceOf[PathMatcher[_]]
           }
         }
@@ -82,6 +90,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
           case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
           case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
+          case 6 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String, String)]]).as(Holder6)
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)

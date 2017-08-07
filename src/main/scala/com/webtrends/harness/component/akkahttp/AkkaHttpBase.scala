@@ -44,6 +44,8 @@ case class Holder4(_1: String, _2: String, _3: String, _4: String)
   extends Product4[String, String, String, String] with AkkaHttpPathSegments
 case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
   extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
+  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
 trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   this: BaseCommand =>
@@ -75,15 +77,15 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                                                               method: HttpMethod = method) = {
     httpPath { segments: AkkaHttpPathSegments =>
       httpMethod(method) {
+        inputBean.addValue(AkkaHttpBase.Path, url)
+        inputBean.addValue(AkkaHttpBase.Segments, segments)
+        inputBean.addValue(AkkaHttpBase.Method, method)
         handleRejections(AkkaHttpBase.rejectionHandler) {
           handleExceptions(exceptionHandler[T]) {
             httpParams { params: AkkaHttpParameters =>
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
                   extractMethod { extMethod =>
-                    inputBean.addValue(AkkaHttpBase.Path, url)
-                    inputBean.addValue(AkkaHttpBase.Method, method)
-                    inputBean.addValue(AkkaHttpBase.Segments, segments)
                     // Query params that can be marshalled to a case class via httpParams
                     inputBean.addValue(AkkaHttpBase.Params, params)
                     inputBean.addValue(AkkaHttpBase.Auth, auth)
