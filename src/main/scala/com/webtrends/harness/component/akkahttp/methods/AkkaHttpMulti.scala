@@ -41,7 +41,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   def getQueryParams(bean: CommandBean): Map[String, String] =
     bean.getValue[Map[String, String]](AkkaHttpBase.QueryParams).getOrElse(Map.empty[String, String])
 
-  // TODO: Add support for inputs of specific types, instead of treating every segment as a string
   // Method that adds all routes from allPaths
   override def createRoutes() = {
     allPaths.foreach { endpoint =>
