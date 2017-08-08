@@ -53,6 +53,7 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   val healthActor = system.actorSelection(HarnessConstants.HealthFullName)
   val serviceActor = system.actorSelection(HarnessConstants.ServicesFullName)
+  val config = context.system.settings.config
 
   val baseRoutes =
     get {
@@ -107,6 +108,18 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
         }
     }
 
+  def staticRoutes = {
+    val rootPath = config.getString(AkkaHttpManager.KeyStaticRoot)
+    config.getString(AkkaHttpManager.KeyStaticType) match {
+      case "file" =>
+        getFromBrowseableDirectory(rootPath)
+      case "jar" =>
+        getFromResourceDirectory(rootPath)
+      case _ =>
+        getFromResourceDirectory(rootPath)
+    }
+  }
+
   val bindingFuture = serverSource
     .to(Sink.foreach { conn => conn.handleWith(RouteResult.route2HandlerFlow(routes)) })
     .run()
@@ -118,13 +131,12 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
       log.error(s"Failed to bind akka-http internal-server: $f")
   }
 
-
   def routes =
     InternalAkkaHttpRouteContainer
       .getRoutes
       .foldLeft(ExternalAkkaHttpRouteContainer
         .getRoutes
-        .foldLeft(baseRoutes)(_ ~ _)
+        .foldLeft(baseRoutes ~ staticRoutes)(_ ~ _)
       )(_ ~ _)
 
   def unbind = {

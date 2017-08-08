@@ -67,6 +67,11 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
 }
 
 object AkkaHttpManager {
+  val ComponentName = "wookiee-akka-http"
+
+  def KeyStaticRoot = s"$ComponentName.static-content.root-path"
+  def KeyStaticType = s"$ComponentName.static-content.type"
+
   val ExternalAkkaHttpName = "ExternalAkkaHttp"
   val InternalAkkaHttpName = "InternalAkkaHttp"
   val WebsocketAkkaHttpName = "WebsocketAkkaHttp"
@@ -84,13 +89,13 @@ object AkkaHttpSettings {
     val internalInterface = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.interface", config.getString, "0.0.0.0")
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
-      "wookiee-akka-http.external-server.enabled", config.getBoolean, false)
+      s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
     val wsPort = ConfigUtil.getDefaultValue(
-      "wookiee-akka-http.external-server.websocket-port", config.getInt, 8081)
+      s"${AkkaHttpManager.ComponentName}.external-server.websocket-port", config.getInt, 8081)
     val externalPort = ConfigUtil.getDefaultValue(
-      "wookiee-akka-http.external-server.http-port", config.getInt, 8082)
+      s"${AkkaHttpManager.ComponentName}.external-server.http-port", config.getInt, 8082)
     val externalInterface = ConfigUtil.getDefaultValue(
-      "wookiee-akka-http.external-server.interface", config.getString, "0.0.0.0")
+      s"${AkkaHttpManager.ComponentName}.external-server.interface", config.getString, "0.0.0.0")
 
     val serverSettings = ServerSettings(config)
 
