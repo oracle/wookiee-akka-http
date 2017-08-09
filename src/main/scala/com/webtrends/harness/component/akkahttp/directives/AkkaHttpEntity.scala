@@ -24,7 +24,7 @@ trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
 
   def readEntity(bean: CommandBean): Directive[Unit] = {
     entity(as[EntityT](unmarshaller)).flatMap { entity =>
-      bean.addValue(AkkaHttpEntity.Entity, entity)
+      bean.addValue(CommandBean.KeyEntity, entity)
       pass
     } recover { rejections =>
       if (rejections.size == 1 && rejections.head.isInstanceOf[RequestEntityExpectedRejection]) {
@@ -36,10 +36,6 @@ trait AkkaHttpEntity[EntityT <: AnyRef] extends AkkaHttpBase {
   // Can use to get the entity that was unmarshalled and put on the bean, will be None if
   // empty payload was passed
   def getEntity[T](bean: CommandBean): Option[T] = {
-    bean.getValue[T](AkkaHttpEntity.Entity)
+    bean.getValue[T](CommandBean.KeyEntity)
   }
-}
-
-object AkkaHttpEntity {
-  val Entity = "entity"
 }

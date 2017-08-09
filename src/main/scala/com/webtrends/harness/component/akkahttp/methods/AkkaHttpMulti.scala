@@ -5,6 +5,7 @@ import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher, PathMatchers}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpEntity
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -41,7 +42,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   def getQueryParams(bean: CommandBean): Map[String, String] =
     bean.getValue[Map[String, String]](AkkaHttpBase.QueryParams).getOrElse(Map.empty[String, String])
 
-  // TODO: Add support for inputs of specific types, instead of treating every segment as a string
   // Method that adds all routes from allPaths
   override def createRoutes() = {
     allPaths.foreach { endpoint =>
@@ -116,6 +116,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
+  // TODO Consider attempting to cast values to ints before placing onto bean as other frameworks did
   override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
     // Grab all segments from the URI and put them directly on the bean
     val segs = bean.getValue[String](AkkaHttpBase.Path).getOrElse("").split("/").filter(_.startsWith("$"))
