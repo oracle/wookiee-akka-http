@@ -66,17 +66,15 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
 
   protected def commandOuterDirective = {
-    commandInnerDirective(new CommandBean)
+    commandInnerDirective()
   }
 
-  protected def commandInnerDirective[T <: AnyRef : Manifest](inputBean: CommandBean,
-                                                              url: String = path,
+  protected def commandInnerDirective[T <: AnyRef : Manifest](url: String = path,
                                                               method: HttpMethod = method) = {
     httpPath { segments: AkkaHttpPathSegments =>
       httpMethod(method) {
-        inputBean.addValue(AkkaHttpBase.Path, url)
-        inputBean.addValue(AkkaHttpBase.Segments, segments)
-        inputBean.addValue(AkkaHttpBase.Method, method)
+        val inputBean = CommandBean(Map((AkkaHttpBase.Path, url),
+          (AkkaHttpBase.Segments, segments), (AkkaHttpBase.Method, method)))
         handleRejections(AkkaHttpBase.rejectionHandler) {
           handleExceptions(exceptionHandler[T]) {
             httpParams { params: AkkaHttpParameters =>

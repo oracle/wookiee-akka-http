@@ -1,11 +1,16 @@
 package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
-import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
-import akka.http.scaladsl.server.{Directive1, PathMatcher, PathMatchers}
+import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.directives.BasicDirectives.{cancelRejections, extractRequestContext, provide}
+import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
+import akka.http.scaladsl.server.directives.RouteDirectives.reject
+import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpEntity
+
+import scala.util.{Failure, Success}
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -94,7 +99,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
         }
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
-        addRoute(commandInnerDirective(new CommandBean, endpoint.path, endpoint.method))
+        addRoute(commandInnerDirective(endpoint.path, endpoint.method))
       } catch {
         case ex: Throwable =>
           log.error(s"Error adding path ${endpoint.path}", ex)
@@ -137,12 +142,34 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
-      (withSizeLimit(maxSizeBytes) & entity(as[AnyRef](unmarsh))).flatMap { entity =>
-        bean.addValue(CommandBean.KeyEntity, entity)
+      (withSizeLimit(maxSizeBytes) & optEntity(as[AnyRef](unmarsh))).flatMap { entity =>
+        entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
         super.beanDirective(bean, url, method)
       }
     } else super.beanDirective(bean, url, method)
   }
+
+  /**
+    * Unmarshalls the requests entity to the given type passes it to its inner Route.
+    * If there is a problem with unmarshalling the request is rejected with the [[Rejection]]
+    * produced by the unmarshaller.
+    * Taken from akka-http MarshallingDirectives:entity and modified to pass back an option and not reject
+    * the request if there is no payload
+    *
+    * @group marshalling
+    */
+  def optEntity[T](um: FromRequestUnmarshaller[T]): Directive1[Option[T]] =
+    extractRequestContext.flatMap[Tuple1[Option[T]]] { ctx ⇒
+      import ctx.{executionContext, materializer}
+      onComplete(um(ctx.request)) flatMap {
+        case Success(value) ⇒ provide(Some(value))
+        case Failure(RejectionError(r)) ⇒ reject(r)
+        case Failure(Unmarshaller.NoContentException) ⇒ provide(None)
+        case Failure(Unmarshaller.UnsupportedContentTypeException(x)) ⇒ reject(UnsupportedRequestContentTypeRejection(x))
+        case Failure(x: IllegalArgumentException) ⇒ reject(ValidationRejection(Option(x.getMessage).getOrElse(""), Some(x)))
+        case Failure(x) ⇒ reject(MalformedRequestContentRejection(Option(x.getMessage).getOrElse(""), x))
+      }
+    } & cancelRejections(RequestEntityExpectedRejection.getClass, classOf[UnsupportedRequestContentTypeRejection])
 }
 
 // Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params
