@@ -116,6 +116,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
+  // TODO Consider attempting to cast values to ints before placing onto bean as other frameworks did
   override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
     // Grab all segments from the URI and put them directly on the bean
     val segs = bean.getValue[String](AkkaHttpBase.Path).getOrElse("").split("/").filter(_.startsWith("$"))
