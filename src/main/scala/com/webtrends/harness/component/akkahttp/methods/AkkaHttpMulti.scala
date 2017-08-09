@@ -142,34 +142,12 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
-      (withSizeLimit(maxSizeBytes) & optEntity(as[AnyRef](unmarsh))).flatMap { entity =>
+      (withSizeLimit(maxSizeBytes) & entity(as[Option[AnyRef]](unmarsh))).flatMap { entity =>
         entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
         super.beanDirective(bean, url, method)
       }
     } else super.beanDirective(bean, url, method)
   }
-
-  /**
-    * Unmarshalls the requests entity to the given type passes it to its inner Route.
-    * If there is a problem with unmarshalling the request is rejected with the [[Rejection]]
-    * produced by the unmarshaller.
-    * Taken from akka-http MarshallingDirectives:entity and modified to pass back an option and not reject
-    * the request if there is no payload
-    *
-    * @group marshalling
-    */
-  def optEntity[T](um: FromRequestUnmarshaller[T]): Directive1[Option[T]] =
-    extractRequestContext.flatMap[Tuple1[Option[T]]] { ctx ⇒
-      import ctx.{executionContext, materializer}
-      onComplete(um(ctx.request)) flatMap {
-        case Success(value) ⇒ provide(Some(value))
-        case Failure(RejectionError(r)) ⇒ reject(r)
-        case Failure(Unmarshaller.NoContentException) ⇒ provide(None)
-        case Failure(Unmarshaller.UnsupportedContentTypeException(x)) ⇒ reject(UnsupportedRequestContentTypeRejection(x))
-        case Failure(x: IllegalArgumentException) ⇒ reject(ValidationRejection(Option(x.getMessage).getOrElse(""), Some(x)))
-        case Failure(x) ⇒ reject(MalformedRequestContentRejection(Option(x.getMessage).getOrElse(""), x))
-      }
-    } & cancelRejections(RequestEntityExpectedRejection.getClass, classOf[UnsupportedRequestContentTypeRejection])
 }
 
 // Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params
