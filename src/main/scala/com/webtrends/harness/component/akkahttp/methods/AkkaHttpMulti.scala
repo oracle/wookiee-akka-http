@@ -5,6 +5,7 @@ import akka.http.scaladsl.server.Directives.{entity, provide, path => p, _}
 import akka.http.scaladsl.server.{Directive1, PathMatcher, PathMatchers}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpEntity
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any

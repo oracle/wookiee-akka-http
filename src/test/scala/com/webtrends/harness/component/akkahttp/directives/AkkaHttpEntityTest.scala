@@ -42,7 +42,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         override def addRoute(r: Route): Unit = routes += r
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val e = bean.get(CommandBean.KeyEntity).asInstanceOf[TestEntity]
           val response = AkkaHttpCommandResponse(Some(e.asInstanceOf[T]))
           Future.successful(response)
         }
@@ -103,7 +103,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         override def addRoute(r: Route): Unit = routes += r
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val e = bean.get(CommandBean.KeyEntity).asInstanceOf[TestEntity]
           val response = AkkaHttpCommandResponse(Some(e.asInstanceOf[T]))
           Future.successful(response)
         }
@@ -132,7 +132,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         override def addRoute(r: Route): Unit = routes += r
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val e = bean.get(CommandBean.KeyEntity).asInstanceOf[TestEntity]
           val response = AkkaHttpCommandResponse(Some(e.asInstanceOf[T]))
           Future.successful(response)
         }
@@ -165,7 +165,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         override def addRoute(r: Route): Unit = routes += r
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val e = bean.get(CommandBean.KeyEntity).asInstanceOf[TestEntity]
           val response = AkkaHttpCommandResponse(Some(e.asInstanceOf[T]))
           Future.successful(response)
         }
@@ -212,7 +212,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
         override def addRoute(r: Route): Unit = routes += r
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val e = bean.get(AkkaHttpEntity.Entity).asInstanceOf[TestEntity]
+          val e = bean.get(CommandBean.KeyEntity).asInstanceOf[TestEntity]
           Future.failed(AkkaHttpException[ErrorEntity](responseEntity, StatusCodes.OK))
         }
       }
