@@ -3,20 +3,16 @@ package com.webtrends.harness.component.akkahttp.methods
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.BasicDirectives.{cancelRejections, extractRequestContext, provide}
-import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
-import akka.http.scaladsl.server.directives.RouteDirectives.reject
-import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
+import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
-
-import scala.util.{Failure, Success}
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
   * number of HTTP methods in a single class
   */
-trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
+trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
@@ -116,8 +112,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Overriding this so that child classes won't have to worry about it
   override def path = ""
-
-  override def httpMethod(method: HttpMethod) = AkkaHttpBase.httpMethod(method)
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
