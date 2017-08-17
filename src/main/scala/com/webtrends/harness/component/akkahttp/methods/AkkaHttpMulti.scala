@@ -3,20 +3,16 @@ package com.webtrends.harness.component.akkahttp.methods
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.BasicDirectives.{cancelRejections, extractRequestContext, provide}
-import akka.http.scaladsl.server.directives.FutureDirectives.onComplete
-import akka.http.scaladsl.server.directives.RouteDirectives.reject
-import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
+import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
-
-import scala.util.{Failure, Success}
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
   * number of HTTP methods in a single class
   */
-trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
+trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
@@ -117,8 +113,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Overriding this so that child classes won't have to worry about it
   override def path = ""
 
-  override def httpMethod(method: HttpMethod) = AkkaHttpBase.httpMethod(method)
-
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
   // TODO Consider attempting to cast values to ints before placing onto bean as other frameworks did
@@ -142,34 +136,12 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     if (entityClass.isDefined) {
       val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
       val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
-      (withSizeLimit(maxSizeBytes) & optEntity(as[AnyRef](unmarsh))).flatMap { entity =>
+      (withSizeLimit(maxSizeBytes) & entity(as[Option[AnyRef]](unmarsh))).flatMap { entity =>
         entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
         super.beanDirective(bean, url, method)
       }
     } else super.beanDirective(bean, url, method)
   }
-
-  /**
-    * Unmarshalls the requests entity to the given type passes it to its inner Route.
-    * If there is a problem with unmarshalling the request is rejected with the [[Rejection]]
-    * produced by the unmarshaller.
-    * Taken from akka-http MarshallingDirectives:entity and modified to pass back an option and not reject
-    * the request if there is no payload
-    *
-    * @group marshalling
-    */
-  def optEntity[T](um: FromRequestUnmarshaller[T]): Directive1[Option[T]] =
-    extractRequestContext.flatMap[Tuple1[Option[T]]] { ctx ⇒
-      import ctx.{executionContext, materializer}
-      onComplete(um(ctx.request)) flatMap {
-        case Success(value) ⇒ provide(Some(value))
-        case Failure(RejectionError(r)) ⇒ reject(r)
-        case Failure(Unmarshaller.NoContentException) ⇒ provide(None)
-        case Failure(Unmarshaller.UnsupportedContentTypeException(x)) ⇒ reject(UnsupportedRequestContentTypeRejection(x))
-        case Failure(x: IllegalArgumentException) ⇒ reject(ValidationRejection(Option(x.getMessage).getOrElse(""), Some(x)))
-        case Failure(x) ⇒ reject(MalformedRequestContentRejection(Option(x.getMessage).getOrElse(""), x))
-      }
-    } & cancelRejections(RequestEntityExpectedRejection.getClass, classOf[UnsupportedRequestContentTypeRejection])
 }
 
 // Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params

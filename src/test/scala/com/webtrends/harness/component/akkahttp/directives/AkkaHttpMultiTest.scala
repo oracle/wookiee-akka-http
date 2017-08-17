@@ -3,14 +3,15 @@ package com.webtrends.harness.component.akkahttp.directives
 import java.util.Collections
 
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods, StatusCodes}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
-import com.webtrends.harness.component.akkahttp.util.TestEntity
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
+import com.webtrends.harness.component.akkahttp.util.TestEntity
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
@@ -73,6 +74,14 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       entityAs[String] mustEqual "\"getted\""
     }
     Get("/getTest/?meow=true") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"gettedtrue\""
+    }
+    HttpRequest(HttpMethods.GET, "/getTest/?meow=true").withHeaders(
+      Origin(HttpOrigin("http://meow.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      val h = headers
+      h.find(_.name() == "Access-Control-Allow-Credentials").get.value() mustEqual "true"
+      h.find(_.name() == "Access-Control-Allow-Origin").get.value() mustEqual "http://meow.com"
       status mustEqual StatusCodes.OK
       entityAs[String] mustEqual "\"gettedtrue\""
     }

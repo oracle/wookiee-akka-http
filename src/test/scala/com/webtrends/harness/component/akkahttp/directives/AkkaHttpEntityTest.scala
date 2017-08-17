@@ -85,6 +85,32 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
     }
   }
 
+  test("should not break when input content is omitted") {
+    var routes = Set.empty[Route]
+
+    new AkkaHttpPost with AkkaHttpEntity[TestEntity] with TestBaseCommand {
+
+      override def ev: Manifest[TestEntity] = Manifest.classType(classOf[TestEntity])
+
+      override def path: String = "test"
+
+      override def addRoute(r: Route): Unit = routes += r
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
+        val e = getEntity[TestEntity](bean.get)
+        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), "text/plain", statusCode = Some(StatusCodes.OK))
+        Future.successful(response)
+      }
+    }
+
+    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
+
+    Post("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"return\""
+    }
+  }
+
   test("should honor size limit") {
 
     forAll(gen) { entity: TestEntity =>
