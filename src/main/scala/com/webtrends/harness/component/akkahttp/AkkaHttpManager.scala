@@ -21,10 +21,14 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   var wsAkkaHttpRef: Option[ActorRef] = None
 
   def startAkkaHttp() = {
-    internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
-    if (settings.external.enabled) {
-      externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
-      wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
+    internalAkkaHttpRef.synchronized {
+      log.info("Starting Wookiee Akka HTTP Actors...")
+      internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
+      if (settings.external.enabled) {
+        externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
+        wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
+      }
+      log.info("Wookiee Akka HTTP Actors Ready, Request Line is Open!")
     }
   }
 
