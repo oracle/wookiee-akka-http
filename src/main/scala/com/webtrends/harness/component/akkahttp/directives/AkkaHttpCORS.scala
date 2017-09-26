@@ -22,5 +22,5 @@ trait AkkaHttpCORS extends AkkaHttpBase {
     CorsSettings.defaultSettings.maxAge
   )
 
-  override def httpMethod(method: HttpMethod): Directive0 = CorsDirectives.cors(corsSettings) & AkkaHttpBase.httpMethod(method)
+  override def httpMethod(method: HttpMethod): Directive0 = CorsDirectives.cors(corsSettings) & super.httpMethod(method)
 }

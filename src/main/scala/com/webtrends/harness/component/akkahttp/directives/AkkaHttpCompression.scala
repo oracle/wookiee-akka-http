@@ -10,5 +10,5 @@ import com.webtrends.harness.component.akkahttp.AkkaHttpBase
 trait AkkaHttpCompression extends AkkaHttpBase {
   this: BaseCommand =>
 
-  override def httpMethod(method: HttpMethod): Directive0 = decodeRequest & encodeResponse & AkkaHttpBase.httpMethod(method)
+  override def httpMethod(method: HttpMethod): Directive0 = decodeRequest & encodeResponse & super.httpMethod(method)
 }

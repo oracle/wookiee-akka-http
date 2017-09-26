@@ -90,7 +90,7 @@
         <dependency>
             <groupId>ch.megard</groupId>
             <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
-            <version>0.2.1</version>
+            <version>0.2.2</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
