@@ -80,8 +80,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
             httpParams { params: AkkaHttpParameters =>
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
-                  extractMethod { extMethod =>
+                  extractRequest { request =>
                     // Query params that can be marshalled to a case class via httpParams
+                    inputBean.addValue(AkkaHttpBase.Headers, request.headers)
                     inputBean.addValue(AkkaHttpBase.Params, params)
                     inputBean.addValue(AkkaHttpBase.Auth, auth)
                     // Generic string Map of query params
@@ -144,6 +145,7 @@ object AkkaHttpBase {
   val Auth = "auth"
   val Method = "method"
   val QueryParams = "queryParams"
+  val Headers = "headers"
 
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
