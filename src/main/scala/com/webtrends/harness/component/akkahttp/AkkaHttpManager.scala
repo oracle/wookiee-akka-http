@@ -15,13 +15,14 @@ case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   val settings = AkkaHttpSettings(config)
+  val starMonitor = new Object()
 
   var internalAkkaHttpRef: Option[ActorRef] = None
   var externalAkkaHttpRef: Option[ActorRef] = None
   var wsAkkaHttpRef: Option[ActorRef] = None
 
-  def startAkkaHttp() = {
-    internalAkkaHttpRef.synchronized {
+  def startAkkaHttp(): Unit = {
+    starMonitor.synchronized {
       log.info("Starting Wookiee Akka HTTP Actors...")
       internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
       if (settings.external.enabled) {
@@ -32,7 +33,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     }
   }
 
-  def stopAkkaHttp() = {
+  def stopAkkaHttp(): Unit = {
     Seq(internalAkkaHttpRef, externalAkkaHttpRef, wsAkkaHttpRef).flatten.foreach(_ ! AkkaHttpUnbind)
   }
 
@@ -43,7 +44,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
    *
    * @return
    */
-  override def receive = super.receive orElse {
+  override def receive: PartialFunction[Any, Unit] = super.receive orElse {
     case AkkaHttpMessage => println("DO SOMETHING HERE")
   }
 
@@ -52,7 +53,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     *
     * @return
    */
-  override def start = {
+  override def start: Unit = {
     startAkkaHttp()
     super.start
   }
@@ -63,7 +64,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     *
     * @return
    */
-  override def stop = {
+  override def stop: Unit = {
     stopAkkaHttp()
     super.stop
   }
