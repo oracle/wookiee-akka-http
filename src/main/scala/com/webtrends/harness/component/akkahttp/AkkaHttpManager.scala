@@ -97,21 +97,23 @@ object AkkaHttpSettings {
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
-    val externalWebsocketServerEnabled = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.websocket-enabled", config.getBoolean, false)
-    val wsPort = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.websocket-port", config.getInt, 8081)
     val externalPort = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.http-port", config.getInt, 8082)
     val externalInterface = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.interface", config.getString, "0.0.0.0")
-
+    val wsEnabled = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.enabled", config.getBoolean, false)
+    val wsPort = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.port", config.getInt, 8081)
+    val wsInterface = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.interface", config.getString, "0.0.0.0")
     val serverSettings = ServerSettings(config)
+
 
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings),
       ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings),
-      WebsocketAkkaHttpSettings(externalWebsocketServerEnabled, externalInterface, wsPort, serverSettings)
+      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, serverSettings)
     )
   }
 }
