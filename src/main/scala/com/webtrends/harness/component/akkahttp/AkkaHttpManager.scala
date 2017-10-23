@@ -27,6 +27,8 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
       internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
       if (settings.external.enabled) {
         externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
+      }
+      if (settings.ws.enabled) {
         wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
       }
       log.info("Wookiee Akka HTTP Actors Ready, Request Line is Open!")
@@ -95,6 +97,8 @@ object AkkaHttpSettings {
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
+    val externalWebsocketServerEnabled = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.external-server.websocket-enabled", config.getBoolean, false)
     val wsPort = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.websocket-port", config.getInt, 8081)
     val externalPort = ConfigUtil.getDefaultValue(
@@ -107,7 +111,7 @@ object AkkaHttpSettings {
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings),
       ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings),
-      WebsocketAkkaHttpSettings(externalServerEnabled, externalInterface, wsPort, serverSettings)
+      WebsocketAkkaHttpSettings(externalWebsocketServerEnabled, externalInterface, wsPort, serverSettings)
     )
   }
 }
