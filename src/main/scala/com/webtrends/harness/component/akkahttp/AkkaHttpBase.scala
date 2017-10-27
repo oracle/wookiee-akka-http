@@ -82,7 +82,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                 httpAuth { auth: AkkaHttpAuth =>
                   extractRequest { request =>
                     // Query params that can be marshalled to a case class via httpParams
-                    inputBean.addValue(AkkaHttpBase.RequestHeaders, request.headers.map(h => h.name -> h.value).toMap)
+                    inputBean.addValue(AkkaHttpBase.RequestHeaders,request.headers.map(h => h.name.toLowerCase -> h.value).toMap)
                     inputBean.addValue(AkkaHttpBase.Params, params)
                     inputBean.addValue(AkkaHttpBase.Auth, auth)
                     // Generic string Map of query params
