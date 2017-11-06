@@ -15,24 +15,27 @@ case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   val settings = AkkaHttpSettings(config)
+  val starMonitor = new Object()
 
   var internalAkkaHttpRef: Option[ActorRef] = None
   var externalAkkaHttpRef: Option[ActorRef] = None
   var wsAkkaHttpRef: Option[ActorRef] = None
 
-  def startAkkaHttp() = {
-    internalAkkaHttpRef.synchronized {
+  def startAkkaHttp(): Unit = {
+    starMonitor.synchronized {
       log.info("Starting Wookiee Akka HTTP Actors...")
       internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
       if (settings.external.enabled) {
         externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
+      }
+      if (settings.ws.enabled) {
         wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
       }
       log.info("Wookiee Akka HTTP Actors Ready, Request Line is Open!")
     }
   }
 
-  def stopAkkaHttp() = {
+  def stopAkkaHttp(): Unit = {
     Seq(internalAkkaHttpRef, externalAkkaHttpRef, wsAkkaHttpRef).flatten.foreach(_ ! AkkaHttpUnbind)
   }
 
@@ -43,7 +46,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
    *
    * @return
    */
-  override def receive = super.receive orElse {
+  override def receive: PartialFunction[Any, Unit] = super.receive orElse {
     case AkkaHttpMessage => println("DO SOMETHING HERE")
   }
 
@@ -52,7 +55,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     *
     * @return
    */
-  override def start = {
+  override def start: Unit = {
     startAkkaHttp()
     super.start
   }
@@ -63,7 +66,7 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
     *
     * @return
    */
-  override def stop = {
+  override def stop: Unit = {
     stopAkkaHttp()
     super.stop
   }
@@ -94,19 +97,23 @@ object AkkaHttpSettings {
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
-    val wsPort = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.websocket-port", config.getInt, 8081)
     val externalPort = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.http-port", config.getInt, 8082)
     val externalInterface = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.interface", config.getString, "0.0.0.0")
-
+    val wsEnabled = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.enabled", config.getBoolean, false)
+    val wsPort = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.port", config.getInt, 8081)
+    val wsInterface = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.interface", config.getString, "0.0.0.0")
     val serverSettings = ServerSettings(config)
+
 
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings),
       ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings),
-      WebsocketAkkaHttpSettings(externalServerEnabled, externalInterface, wsPort, serverSettings)
+      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, serverSettings)
     )
   }
 }

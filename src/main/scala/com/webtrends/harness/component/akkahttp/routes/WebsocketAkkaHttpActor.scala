@@ -17,7 +17,7 @@ class WebsocketAkkaHttpActor(port: Int, interface: String, settings: ServerSetti
   override def serverName = "akka-http websocket-server"
 
   override def routes = if (WebsocketAkkaHttpRouteContainer.isEmpty) {
-    log.error("no routes defined")
+    log.debug("no routes defined")
     reject()
   } else {
     WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
