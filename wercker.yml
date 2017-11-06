@@ -1,3 +1,4 @@
+box: nodesource/trusty
 info "Branch: $WERCKER_GIT_BRANCH"
 info "Commit: $WERCKER_GIT_COMMIT"
 info "Deploy: $DEPLOY"
