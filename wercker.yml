@@ -4,8 +4,8 @@ info "Commit: $WERCKER_GIT_COMMIT"
 info "Deploy: $DEPLOY"
 info "Deploy target: $WERCKER_DEPLOYTARGET_NAME"
 
-build:
-  steps:
-    - java/maven:
-      goals: clean install
+#build:
+#  steps:
+#    - java/maven:
+#      goals: clean install
 
