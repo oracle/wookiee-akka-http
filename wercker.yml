@@ -5,7 +5,8 @@ info "Deploy: $DEPLOY"
 info "Deploy target: $WERCKER_DEPLOYTARGET_NAME"
 
 build:
-#  steps:
+  steps:
+    info: "Doing nothing!"
 #    - java/maven:
 #      goals: clean install
 
