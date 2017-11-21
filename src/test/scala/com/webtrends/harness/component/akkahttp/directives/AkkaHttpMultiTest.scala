@@ -15,6 +15,7 @@ import com.webtrends.harness.component.akkahttp.util.TestEntity
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
+import AkkaHttpBase._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
@@ -223,5 +224,17 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       status mustEqual StatusCodes.OK
       entityAs[String] mustEqual "\"DELETE\""
     }
+  }
+
+  test("Clean the bean!") {
+    val dirtyBean = CommandBean(Map(Segments -> "", Params -> "", Auth -> "", Method -> "", "clean" -> "true"))
+    val cleanBean = beanClean(dirtyBean)
+    cleanBean.size mustEqual 1
+    cleanBean("clean") mustEqual "true"
+  }
+
+  test("parse headers") {
+    parseHeader(":invalid", ":value").isEmpty mustEqual true
+    parseHeader("Content-Type", "application/json").isDefined mustEqual true
   }
 }
