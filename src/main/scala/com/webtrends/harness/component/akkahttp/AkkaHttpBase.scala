@@ -57,7 +57,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def method: HttpMethod = HttpMethods.GET
-  def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
+  def httpMethod(method: HttpMethod): Directive0 = httpMethod(method)
   def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
     case AkkaHttpException(msg, statusCode, headers, Some(_)) =>
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
