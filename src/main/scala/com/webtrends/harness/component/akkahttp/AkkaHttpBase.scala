@@ -2,6 +2,7 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
 import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
@@ -9,17 +10,19 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
+import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
+import AkkaHttpBase._
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
 
 case class AkkaHttpCommandResponse[T](data: Option[T],
-                                      responseType: String = "_",
+                                      responseType: String = "application/json",
                                       marshaller: Option[ToResponseMarshaller[T]] = None,
                                       statusCode: Option[StatusCode] = None) extends BaseCommandResponse[T]
 
@@ -54,11 +57,11 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
   def method: HttpMethod = HttpMethods.GET
-  def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
+  def httpMethod(method: HttpMethod): Directive0 = httpMethod(method)
   def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
-    case AkkaHttpException(msg, statusCode, headers, Some(marshaller)) =>
+    case AkkaHttpException(msg, statusCode, headers, Some(_)) =>
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-        fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+        fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
       completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
   }
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
@@ -75,27 +78,29 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
       httpMethod(method) {
         val inputBean = CommandBean(Map((AkkaHttpBase.Path, url),
           (AkkaHttpBase.Segments, segments), (AkkaHttpBase.Method, method)))
-        handleRejections(AkkaHttpBase.rejectionHandler) {
+        handleRejections(rejectionHandler) {
           handleExceptions(exceptionHandler[T]) {
             httpParams { params: AkkaHttpParameters =>
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
                   extractRequest { request =>
                     // Query params that can be marshalled to a case class via httpParams
-                    inputBean.addValue(AkkaHttpBase.RequestHeaders,request.headers.map(h => h.name.toLowerCase -> h.value).toMap)
-                    inputBean.addValue(AkkaHttpBase.Params, params)
-                    inputBean.addValue(AkkaHttpBase.Auth, auth)
+                    val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+                    inputBean.addValue(RequestHeaders, reqHeaders)
+                    inputBean.addValue(Params, params)
+                    inputBean.addValue(Auth, auth)
                     // Generic string Map of query params
-                    inputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
+                    inputBean.addValue(QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                         case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
                           route
-                        case Success(AkkaHttpCommandResponse(Some(data), _, None, sc)) =>
+                        case Success(AkkaHttpCommandResponse(Some(data), ct, None, sc)) =>
                           val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                            fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
                           completeWith(succMarshaller) { completeFunc =>
-                            completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data))
+                            completeFunc((sc.getOrElse(OK), immutable.Seq(
+                              parseHeader("Content-Type", ct)).flatten, data))
                           }
                         case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
                           completeWith(marshaller) { completeFunc => completeFunc(data) }
@@ -107,14 +112,14 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                         case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                           case (None, _) => complete(NoContent)
                           case (Some(data), _) =>
-                            completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
+                            completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                         }
                         case Success(unknownResponse) =>
                           log.error(s"Got unknown response $unknownResponse")
                           complete(InternalServerError)
                         case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
                           val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+                            fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
                           completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                         case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
                           val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
@@ -156,6 +161,24 @@ object AkkaHttpBase {
     case HttpMethods.POST => post
     case HttpMethods.DELETE => delete
     case HttpMethods.OPTIONS => options
+  }
+
+  // Returns a new CommandBean that has been stripped of all Wookiee Akka Http dependent params,
+  // good for when one is going to be sending the bean to services that don't have a
+  // wookiee-akka-http dependency
+  def beanClean(bean: CommandBean): CommandBean = {
+    val blackList = List(Segments, Params, Auth, Method)
+    val cleanMap = bean.filterKeys(k => !blackList.contains(k)).toMap
+    CommandBean(cleanMap)
+  }
+
+  def parseHeader(name: String, value: String): Option[HttpHeader] = {
+    HttpHeader.parse(name, value) match {
+      case Ok(header, _) => Some(header)
+      case Error(e) =>
+        Harness.externalLogger.warn("Error parsing header: " + e.summary + "\nDetail: " + e.detail)
+        None
+    }
   }
 
   def rejectionHandler: RejectionHandler = RejectionHandler
