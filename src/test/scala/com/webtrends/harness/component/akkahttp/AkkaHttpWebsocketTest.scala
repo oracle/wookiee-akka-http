@@ -5,12 +5,13 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{ActorRef, Props}
 import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import akka.util.{ByteString, Timeout}
 import com.webtrends.harness.command.CommandBean
-import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
+import com.webtrends.harness.component.akkahttp.routes.{InternalAkkaHttpRouteContainer, WebsocketAkkaHttpRouteContainer}
 import com.webtrends.harness.component.akkahttp.websocket.AkkaHttpWebsocket
 import org.scalatest.{MustMatchers, WordSpecLike}
 
@@ -37,6 +38,19 @@ class TestWebsocketLong extends AkkaHttpWebsocket {
 
   override def commandName = "TestWebsocketLong"
 }
+
+class TestWebsocketInternal extends AkkaHttpWebsocket {
+  override def path = "internal/$var1"
+
+  override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+    Some(TextMessage(s"Hello $text! var1: ${bean("var1")}"))
+  }
+
+  override def commandName = "TestWebsocket"
+
+  override def addRoute(r: Route) = InternalAkkaHttpRouteContainer.addRoute(r)
+}
+
 
 class TestWebsocketStream extends AkkaHttpWebsocket {
   override def path = "stream"
@@ -77,16 +91,14 @@ class AkkaHttpWebsocketTest extends WordSpecLike
   // This should be all you need to get your routes for the WSProbe
   // when making tests for your websocket classes
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
-  val twsActor = system.actorOf(Props[TestWebsocket])
-  val twsActorLong = system.actorOf(Props[TestWebsocketLong])
-  val twsActorStream = system.actorOf(Props[TestWebsocketStream])
-  val twsActorClose = system.actorOf(Props[TestWebsocketClose])
   // Wait for the actor to be up or routes will be empty
-  Await.result(system.actorSelection(twsActor.path).resolveOne(), Duration("5 seconds"))
-  Await.result(system.actorSelection(twsActorLong.path).resolveOne(), Duration("5 seconds"))
-  Await.result(system.actorSelection(twsActorStream.path).resolveOne(), Duration("5 seconds"))
-  Await.result(system.actorSelection(twsActorClose.path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocket]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketLong]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketInternal]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketStream]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketClose]).path).resolveOne(), Duration("5 seconds"))
   val routes = WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  val inRoutes = InternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   // End of setup
 
   "AkkaHttpWebsocket" should {
@@ -143,6 +155,41 @@ class AkkaHttpWebsocketTest extends WordSpecLike
 
           wsClient.sendMessage("test")
           wsClient.expectMessage("test! one two three")
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
+
+    "miss websockets on internal server when hitting websocket server" in {
+      // tests:
+      // create a testing probe representing the client-side
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/internal/friend", wsClient.flow) ~> routes ~>
+        check {
+          try {
+            isWebSocketUpgrade mustEqual true
+            false mustEqual true
+          } catch {
+            case _: Throwable => // Expected to fail
+          }
+        }
+    }
+
+    "hit the websocket on an internal server when registered there" in {
+      // tests:
+      // create a testing probe representing the client-side
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/internal/friend", wsClient.flow) ~> inRoutes ~>
+        check {
+          // check response for WS Upgrade headers
+          isWebSocketUpgrade mustEqual true
+
+          // manually run a WS conversation
+          wsClient.sendMessage("Peter")
+          wsClient.expectMessage("Hello Peter! var1: friend")
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()

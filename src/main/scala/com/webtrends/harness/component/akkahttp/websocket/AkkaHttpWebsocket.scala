@@ -10,7 +10,7 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
-import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
+import com.webtrends.harness.component.akkahttp.routes.{ExternalAkkaHttpRouteContainer, InternalAkkaHttpRouteContainer, WebsocketAkkaHttpRouteContainer}
 
 import scala.concurrent.Future
 
@@ -18,7 +18,9 @@ trait AkkaHttpWebsocket extends Command with HActor {
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
-  def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = ???
+  def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+    throw new NotImplementedError("Must override isStreamingText and handleTextStream to handle streaming text.")
+  }
 
   // Main handler for incoming messages
   def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage]
@@ -29,12 +31,15 @@ trait AkkaHttpWebsocket extends Command with HActor {
   // Override for websocket closure code, callback will be None if we aren't connected yet
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
 
+  // Override this to send to InternalAkkaHttpRouteContainer or External...Container if desired
+  def addRoute(r: Route): Unit = WebsocketAkkaHttpRouteContainer.addRoute(r)
+
   // End standard overrides
   // Props for out SocketActor
   def callbackActor: Props = Props(new SocketActor)
 
-  // This the the main method to routes WS messages
-  def webSocketService(bean: CommandBean): Flow[Message, Message, Any] = {
+  // This the the main method to route WS messages
+  protected def webSocketService(bean: CommandBean): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
     val sink: Sink[Message, Any] =
       Flow[Message].map {
@@ -61,7 +66,7 @@ trait AkkaHttpWebsocket extends Command with HActor {
   }
 
   // Route used to send along our websocket messages and make the initial handshake
-  def webSocketRoute: Route = check { bean =>
+  protected def webSocketRoute: Route = check { bean =>
     extractRequest { req =>
       handleWebSocketMessages(webSocketService(bean))
     }
@@ -73,13 +78,13 @@ trait AkkaHttpWebsocket extends Command with HActor {
   }
 
   // Directive to check out path for matches and extract params
-  def check: Directive1[CommandBean] = {
+  protected def check: Directive1[CommandBean] = {
     var bean: Option[CommandBean] = None
     val filt = extractUri.filter({ uri =>
       bean = Command.matchPath(path, uri.path.toString())
       bean.isDefined
     })
-    filt flatMap { uri =>
+    filt flatMap { _ =>
       provide(bean.get)
     }
   }
@@ -120,5 +125,5 @@ trait AkkaHttpWebsocket extends Command with HActor {
   }
 
   log.info(s"Adding Websocket on path $path to routes")
-  WebsocketAkkaHttpRouteContainer.addRoute(webSocketRoute)
+  addRoute(webSocketRoute)
 }
