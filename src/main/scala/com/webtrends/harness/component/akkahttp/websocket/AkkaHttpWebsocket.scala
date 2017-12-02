@@ -10,7 +10,7 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
-import com.webtrends.harness.component.akkahttp.routes.{ExternalAkkaHttpRouteContainer, InternalAkkaHttpRouteContainer, WebsocketAkkaHttpRouteContainer}
+import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 
 import scala.concurrent.Future
 
@@ -81,7 +81,7 @@ trait AkkaHttpWebsocket extends Command with HActor {
   protected def check: Directive1[CommandBean] = {
     var bean: Option[CommandBean] = None
     val filt = extractUri.filter({ uri =>
-      bean = Command.matchPath(path, uri.path.toString())
+      bean = Command.matchPath(path.toLowerCase, uri.path.toString().toLowerCase)
       bean.isDefined
     })
     filt flatMap { _ =>
