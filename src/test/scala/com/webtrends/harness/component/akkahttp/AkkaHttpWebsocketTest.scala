@@ -1,8 +1,11 @@
 package com.webtrends.harness.component.akkahttp
 
+import java.io.{BufferedReader, ByteArrayInputStream, InputStreamReader}
 import java.util.concurrent.TimeUnit
+import java.util.zip.{GZIPInputStream, InflaterInputStream}
 
 import akka.actor.{ActorRef, Props}
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -158,6 +161,60 @@ class AkkaHttpWebsocketTest extends WordSpecLike
 
           wsClient.sendMessage("John")
           wsClient.expectMessage("Hello John! var1: friend")
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
+
+    "be able to gzip compress output" in {
+      // tests:
+      // create a testing probe representing the client-side
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/greeter2/friend", wsClient.flow)
+        .addHeader(`Accept-Encoding`(HttpEncodingRange(HttpEncodings.gzip))) ~> routes ~>
+        check {
+          // check response for WS Upgrade headers
+          isWebSocketUpgrade mustEqual true
+
+          // manually run a WS conversation
+          wsClient.sendMessage("Peter")
+          val message = wsClient.expectMessage().asBinaryMessage.getStrictData
+          val bais = new ByteArrayInputStream(message.toArray)
+          val gzis = new GZIPInputStream(bais)
+          val reader = new InputStreamReader(gzis)
+          val in = new BufferedReader(reader)
+
+          val decompressed = in.readLine()
+          decompressed mustEqual "Hello Peter! var1: friend"
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
+
+    "be able to deflate compress output" in {
+      // tests:
+      // create a testing probe representing the client-side
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/greeter2/friend", wsClient.flow)
+        .addHeader(`Accept-Encoding`(HttpEncodingRange(HttpEncodings.deflate))) ~> routes ~>
+        check {
+          // check response for WS Upgrade headers
+          isWebSocketUpgrade mustEqual true
+
+          // manually run a WS conversation
+          wsClient.sendMessage("Peter")
+          val message = wsClient.expectMessage().asBinaryMessage.getStrictData
+          val bais = new ByteArrayInputStream(message.toArray)
+          val gzis = new InflaterInputStream(bais)
+          val reader = new InputStreamReader(gzis)
+          val in = new BufferedReader(reader)
+
+          val decompressed = in.readLine()
+          decompressed mustEqual "Hello Peter! var1: friend"
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()

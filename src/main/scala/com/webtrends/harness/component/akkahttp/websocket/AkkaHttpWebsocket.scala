@@ -1,17 +1,18 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
-import java.io.ByteArrayInputStream
-import java.util.zip.GZIPInputStream
+import java.io.{ByteArrayOutputStream, PrintStream}
+import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.http.javadsl.model.headers.{AcceptEncoding, HttpEncodingRange}
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.headers.HttpEncodings
+import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
-import akka.stream.scaladsl.{Flow, Sink, Source, StreamConverters}
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
@@ -20,7 +21,9 @@ import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteCon
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
 
+
 trait AkkaHttpWebsocket extends Command with HActor {
+  val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
@@ -44,10 +47,6 @@ trait AkkaHttpWebsocket extends Command with HActor {
   // Props for output SocketActor
   def callbackActor: Props = Props(new SocketActor)
 
-  // Props for compressing CompressionActor
-  def compressionActor(callback: ActorRef, encodings: List[HttpEncodingRange]): Props =
-    Props(new CompressionActor(callback, encodings))
-
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
@@ -67,14 +66,14 @@ trait AkkaHttpWebsocket extends Command with HActor {
           Nil
       }.to(Sink.actorRef(sActor, CloseSocket(bean)))
 
+    val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
-
       Source.actorRef[Message](10, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
-        val cActor = context.system.actorOf(compressionActor(outgoingActor, encodings))
-        sActor ! Connect(cActor, isStreamingText)
-      } map { message =>
-
-        StreamConverters.fromInputStream(new GZIPInputStream(new ByteArrayInputStream(body)))
+        sActor ! Connect(outgoingActor, isStreamingText)
+      } map {
+        case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
+        // TODO Add support for binary message compression in anyone ends up wanting it
+        case mess => mess
       }
 
     Flow.fromSinkAndSourceCoupled(sink, source)
@@ -89,7 +88,6 @@ trait AkkaHttpWebsocket extends Command with HActor {
         case None =>
           handleWebSocketMessages(webSocketService(bean, List()))
       }
-
     }
   }
 
@@ -109,6 +107,22 @@ trait AkkaHttpWebsocket extends Command with HActor {
     })
     filt flatMap { _ =>
       provide(bean.get)
+    }
+  }
+
+  // Do the encoding of the results
+  protected def compress(text: String, compression: Option[HttpEncoding]): Message = {
+    val bos = new ByteArrayOutputStream(text.length)
+    val zipper = if (compression.get.value == HttpEncodings.gzip.value) new GZIPOutputStream(bos)
+    else if (compression.get.value == HttpEncodings.deflate.value) new DeflaterOutputStream(bos)
+    else new PrintStream(bos)
+
+    try {
+      zipper.write(text.getBytes)
+      zipper.close()
+      BinaryMessage(ByteString(bos.toByteArray))
+    } finally {
+      bos.close()
     }
   }
 
@@ -145,27 +159,6 @@ trait AkkaHttpWebsocket extends Command with HActor {
         onWebsocketClose(bean, Some(retActor))
         retActor ! PoisonPill
         context.stop(self)
-    }
-  }
-
-  class CompressionActor(callback: ActorRef, encodings: List[HttpEncodingRange]) extends Actor {
-    val supported = List(HttpEncodings.gzip, HttpEncodings.compress)
-    val compression = supported.find(enc => encodings.exists(_.matches(enc)))
-
-    def receive: Receive = {
-      case tx: TextMessage if compression.isEmpty => callback ! tx
-      // Add support for binary message compression
-      case bm: BinaryMessage => callback ! bm
-      case tx: TextMessage =>
-        callback ! compress(tx.getStrictText)
-    }
-
-    def compress(text: String): Unit = {
-      if (compression.get.value == HttpEncodings.gzip.value) {
-
-      } else if (compression.get.value == HttpEncodings.compress.value) {
-
-      } else text
     }
   }
 
