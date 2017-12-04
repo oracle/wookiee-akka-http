@@ -28,6 +28,6 @@ class AkkaHttpInternalRouteTest extends FunSuite
 
     ExternalAkkaHttpRouteContainer.getRoutes.size mustEqual extRoutes.size
     InternalAkkaHttpRouteContainer.isEmpty mustEqual false
-    InternalAkkaHttpRouteContainer.getRoutes.size mustEqual 1
+    InternalAkkaHttpRouteContainer.getRoutes.size < extRoutes.size mustEqual true
   }
 }
