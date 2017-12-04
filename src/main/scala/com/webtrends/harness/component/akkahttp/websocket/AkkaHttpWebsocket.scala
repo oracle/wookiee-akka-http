@@ -1,24 +1,35 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
-import akka.actor.{Actor, ActorRef, Props}
+import java.io.{ByteArrayOutputStream, PrintStream}
+import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
+
+import akka.actor.{Actor, ActorRef, PoisonPill, Props}
+import akka.http.javadsl.model.headers.{AcceptEncoding, HttpEncodingRange}
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 
+import scala.collection.JavaConversions._
 import scala.concurrent.Future
 
+
 trait AkkaHttpWebsocket extends Command with HActor {
+  val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
-  def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = ???
+  def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+    throw new NotImplementedError("Must override isStreamingText and handleTextStream to handle streaming text.")
+  }
 
   // Main handler for incoming messages
   def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage]
@@ -29,12 +40,15 @@ trait AkkaHttpWebsocket extends Command with HActor {
   // Override for websocket closure code, callback will be None if we aren't connected yet
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
 
+  // Override this to send to InternalAkkaHttpRouteContainer or External...Container if desired
+  def addRoute(r: Route): Unit = WebsocketAkkaHttpRouteContainer.addRoute(r)
+
   // End standard overrides
-  // Props for out SocketActor
+  // Props for output SocketActor
   def callbackActor: Props = Props(new SocketActor)
 
-  // This the the main method to routes WS messages
-  def webSocketService(bean: CommandBean): Flow[Message, Message, Any] = {
+  // This the the main method to route WS messages
+  protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
     val sink: Sink[Message, Any] =
       Flow[Message].map {
@@ -52,18 +66,28 @@ trait AkkaHttpWebsocket extends Command with HActor {
           Nil
       }.to(Sink.actorRef(sActor, CloseSocket(bean)))
 
+    val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
       Source.actorRef[Message](10, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
         sActor ! Connect(outgoingActor, isStreamingText)
+      } map {
+        case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
+        // TODO Add support for binary message compression in anyone ends up wanting it
+        case mess => mess
       }
 
     Flow.fromSinkAndSourceCoupled(sink, source)
   }
 
   // Route used to send along our websocket messages and make the initial handshake
-  def webSocketRoute: Route = check { bean =>
+  protected def webSocketRoute: Route = check { bean =>
     extractRequest { req =>
-      handleWebSocketMessages(webSocketService(bean))
+      req.header[AcceptEncoding] match {
+        case Some(encoding) =>
+          handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
+        case None =>
+          handleWebSocketMessages(webSocketService(bean, List()))
+      }
     }
   }
 
@@ -72,15 +96,33 @@ trait AkkaHttpWebsocket extends Command with HActor {
     Future.successful(AkkaHttpCommandResponse(None))
   }
 
+  override protected def getHealthChildren = List()
+
   // Directive to check out path for matches and extract params
-  def check: Directive1[CommandBean] = {
+  protected def check: Directive1[CommandBean] = {
     var bean: Option[CommandBean] = None
     val filt = extractUri.filter({ uri =>
-      bean = Command.matchPath(path, uri.path.toString())
+      bean = Command.matchPath(path.toLowerCase, uri.path.toString().toLowerCase)
       bean.isDefined
     })
-    filt flatMap { uri =>
+    filt flatMap { _ =>
       provide(bean.get)
+    }
+  }
+
+  // Do the encoding of the results
+  protected def compress(text: String, compression: Option[HttpEncoding]): Message = {
+    val bos = new ByteArrayOutputStream(text.length)
+    val zipper = if (compression.get.value == HttpEncodings.gzip.value) new GZIPOutputStream(bos)
+    else if (compression.get.value == HttpEncodings.deflate.value) new DeflaterOutputStream(bos)
+    else new PrintStream(bos)
+
+    try {
+      zipper.write(text.getBytes)
+      zipper.close()
+      BinaryMessage(ByteString(bos.toByteArray))
+    } finally {
+      bos.close()
     }
   }
 
@@ -115,10 +157,11 @@ trait AkkaHttpWebsocket extends Command with HActor {
         returnText.foreach(tx => retActor ! tx)
       case CloseSocket(bean) =>
         onWebsocketClose(bean, Some(retActor))
+        retActor ! PoisonPill
         context.stop(self)
     }
   }
 
   log.info(s"Adding Websocket on path $path to routes")
-  WebsocketAkkaHttpRouteContainer.addRoute(webSocketRoute)
+  addRoute(webSocketRoute)
 }
