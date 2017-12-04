@@ -28,6 +28,17 @@ class TestWebsocket extends AkkaHttpWebsocket {
   override def commandName = "TestWebsocket"
 }
 
+class TestWebsocketExtra extends AkkaHttpWebsocket {
+  override def path = "greeter2/$var1"
+
+  override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+    callback ! TextMessage(s"Hello $text! var1: ${bean("var1")}")
+    None
+  }
+
+  override def commandName = "TestWebsocketExtra"
+}
+
 class TestWebsocketLong extends AkkaHttpWebsocket {
   override def path = "long/$var1/url/$var2/$var3/test"
 
@@ -93,6 +104,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
   // Wait for the actor to be up or routes will be empty
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocket]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketExtra]).path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketLong]).path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketInternal]).path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketStream]).path).resolveOne(), Duration("5 seconds"))
@@ -108,6 +120,31 @@ class AkkaHttpWebsocketTest extends WordSpecLike
       val wsClient = WSProbe()
       // WS creates a WebSocket request for testing
       WS("/greeter/friend", wsClient.flow) ~> routes ~>
+        check {
+          // check response for WS Upgrade headers
+          isWebSocketUpgrade mustEqual true
+
+          // manually run a WS conversation
+          wsClient.sendMessage("Peter")
+          wsClient.expectMessage("Hello Peter! var1: friend")
+
+          wsClient.sendMessage(BinaryMessage(ByteString("abcdef")))
+          wsClient.expectMessage("Hello abcdef! var1: friend")
+
+          wsClient.sendMessage("John")
+          wsClient.expectMessage("Hello John! var1: friend")
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
+
+    "be able to send back data with a TextMessage" in {
+      // tests:
+      // create a testing probe representing the client-side
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/greeter2/friend", wsClient.flow) ~> routes ~>
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true
