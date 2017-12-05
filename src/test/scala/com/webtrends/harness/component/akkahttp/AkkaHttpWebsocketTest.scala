@@ -151,6 +151,8 @@ class AkkaHttpWebsocketTest extends WordSpecLike
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true
+          val encoding = header[`Content-Encoding`]
+          encoding.isEmpty mustEqual true
 
           // manually run a WS conversation
           wsClient.sendMessage("Peter")
@@ -177,7 +179,8 @@ class AkkaHttpWebsocketTest extends WordSpecLike
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true
-
+          val encoding = header[`Content-Encoding`]
+          encoding.get.encodings.contains(HttpEncodings.gzip) mustEqual true
           // manually run a WS conversation
           wsClient.sendMessage("Peter")
           val message = wsClient.expectMessage().asBinaryMessage.getStrictData
@@ -204,7 +207,8 @@ class AkkaHttpWebsocketTest extends WordSpecLike
         check {
           // check response for WS Upgrade headers
           isWebSocketUpgrade mustEqual true
-
+          val encoding = header[`Content-Encoding`]
+          encoding.get.encodings.contains(HttpEncodings.deflate) mustEqual true
           // manually run a WS conversation
           wsClient.sendMessage("Peter")
           val message = wsClient.expectMessage().asBinaryMessage.getStrictData
