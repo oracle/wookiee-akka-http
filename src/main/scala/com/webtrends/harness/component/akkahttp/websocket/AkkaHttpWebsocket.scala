@@ -3,7 +3,7 @@ package com.webtrends.harness.component.akkahttp.websocket
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
-import akka.actor.{Actor, ActorRef, PoisonPill, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.http.javadsl.model.headers.{AcceptEncoding, HttpEncodingRange}
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
@@ -72,7 +72,7 @@ trait AkkaHttpWebsocket extends Command with HActor {
         sActor ! Connect(outgoingActor, isStreamingText)
       } map {
         case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
-        // TODO Add support for binary message compression in anyone ends up wanting it
+        // TODO Add support for binary message compression if anyone ends up wanting it
         case mess => mess
       }
 
@@ -157,7 +157,6 @@ trait AkkaHttpWebsocket extends Command with HActor {
         returnText.foreach(tx => retActor ! tx)
       case CloseSocket(bean) =>
         onWebsocketClose(bean, Some(retActor))
-        retActor ! PoisonPill
         context.stop(self)
     }
   }
