@@ -4,7 +4,7 @@ import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
 import akka.actor.{Actor, ActorRef, Props}
-import akka.http.javadsl.model.headers.{AcceptEncoding, HttpEncodingRange}
+import akka.http.javadsl.model.headers.{AcceptEncoding, ContentEncoding, HttpEncodingRange}
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
@@ -84,7 +84,12 @@ trait AkkaHttpWebsocket extends Command with HActor {
     extractRequest { req =>
       req.header[AcceptEncoding] match {
         case Some(encoding) =>
-          handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
+          supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+            case Some(compression) => respondWithHeader(ContentEncoding.create(compression)) {
+              handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
+            }
+            case None => handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
+          }
         case None =>
           handleWebSocketMessages(webSocketService(bean, List()))
       }
