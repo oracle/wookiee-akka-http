@@ -43,17 +43,13 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
   implicit val materializer = ActorMaterializer()
-
-
   implicit val serialization = jackson.Serialization
-
   implicit val formats       = (DefaultFormats ++ JodaTimeSerializers.all) + new EnumNameSerializer(ComponentState)
 
   val serverSource = Http().bind(interface, port, settings = settings)
 
   val healthActor = system.actorSelection(HarnessConstants.HealthFullName)
   val serviceActor = system.actorSelection(HarnessConstants.ServicesFullName)
-  val config = context.system.settings.config
 
   val baseRoutes =
     get {

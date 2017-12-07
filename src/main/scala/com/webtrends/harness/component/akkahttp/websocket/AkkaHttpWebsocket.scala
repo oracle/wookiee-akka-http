@@ -15,14 +15,15 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
+import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse}
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
 
 
-trait AkkaHttpWebsocket extends Command with HActor {
+trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
@@ -41,7 +42,7 @@ trait AkkaHttpWebsocket extends Command with HActor {
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
 
   // Override this to send to InternalAkkaHttpRouteContainer or External...Container if desired
-  def addRoute(r: Route): Unit = WebsocketAkkaHttpRouteContainer.addRoute(r)
+  override def addRoute(r: Route): Unit = WebsocketAkkaHttpRouteContainer.addRoute(r)
 
   // End standard overrides
   // Props for output SocketActor
@@ -80,18 +81,23 @@ trait AkkaHttpWebsocket extends Command with HActor {
   }
 
   // Route used to send along our websocket messages and make the initial handshake
-  protected def webSocketRoute: Route = check { bean =>
+  override protected def commandOuterDirective: Route = check { bean =>
     extractRequest { req =>
-      req.header[AcceptEncoding] match {
-        case Some(encoding) =>
-          supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
-            case Some(compression) => respondWithHeader(ContentEncoding.create(compression)) {
-              handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
+      // Query params that can be marshalled to a case class via httpParams
+      val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
+      bean.addValue(RequestHeaders, reqHeaders)
+      beanDirective(bean, path, method) { outputBean =>
+        req.header[AcceptEncoding] match {
+          case Some(encoding) =>
+            supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+              case Some(compression) => respondWithHeader(ContentEncoding.create(compression)) {
+                handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
+              }
+              case None => handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
             }
-            case None => handleWebSocketMessages(webSocketService(bean, encoding.getEncodings.toList))
-          }
-        case None =>
-          handleWebSocketMessages(webSocketService(bean, List()))
+          case None =>
+            handleWebSocketMessages(webSocketService(outputBean, List()))
+        }
       }
     }
   }
@@ -165,7 +171,4 @@ trait AkkaHttpWebsocket extends Command with HActor {
         context.stop(self)
     }
   }
-
-  log.info(s"Adding Websocket on path $path to routes")
-  addRoute(webSocketRoute)
 }
