@@ -171,4 +171,6 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         context.stop(self)
     }
   }
+
+  log.info(s"Adding Websocket on path $path to routes")
 }
