@@ -10,6 +10,7 @@ import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
+import scala.concurrent.duration._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
@@ -53,6 +54,8 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
     val sActor = context.system.actorOf(callbackActor)
     val sink: Sink[Message, Any] =
       Flow[Message].map {
+        case tm: TextMessage if tm.getStrictText == "keepalive" =>
+          Nil
         case tm: TextMessage ⇒
           (tm, bean)
         case bm: BinaryMessage =>
@@ -65,7 +68,8 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }.to(Sink.actorRef(sActor, CloseSocket(bean)))
+      }.keepAlive(30 seconds, () => TextMessage("keepalive"))
+        .to(Sink.actorRef(sActor, CloseSocket(bean)))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
@@ -169,6 +173,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case CloseSocket(bean) =>
         onWebsocketClose(bean, Some(retActor))
         context.stop(self)
+      case _ => // Mainly for eating the keep alive
     }
   }
 
