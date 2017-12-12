@@ -10,21 +10,26 @@ import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
+
+import scala.concurrent.duration._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
-import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse}
+import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpManager}
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
+import scala.util.Try
 
 
 trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
+  val keepAlive = Try(config.getBoolean(
+    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives")).getOrElse(true)
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
@@ -51,8 +56,10 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
-    val sink: Sink[Message, Any] =
+    val flow =
       Flow[Message].map {
+        case tm: TextMessage if tm.getStrictText == "keepalive" =>
+          Nil
         case tm: TextMessage ⇒
           (tm, bean)
         case bm: BinaryMessage =>
@@ -65,7 +72,11 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }.to(Sink.actorRef(sActor, CloseSocket(bean)))
+      }
+    val sink: Sink[Message, Any] = if (keepAlive) {
+      flow.keepAlive(30 seconds, () => TextMessage("keepalive"))
+        .to(Sink.actorRef(sActor, CloseSocket(bean)))
+    } else flow.to(Sink.actorRef(sActor, CloseSocket(bean)))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
@@ -169,6 +180,9 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case CloseSocket(bean) =>
         onWebsocketClose(bean, Some(retActor))
         context.stop(self)
+      case _ => // Mainly for eating the keep alive
     }
   }
+
+  log.info(s"Adding Websocket on path $path to routes")
 }
