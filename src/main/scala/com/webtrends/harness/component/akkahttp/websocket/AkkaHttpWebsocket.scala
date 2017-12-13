@@ -58,8 +58,6 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
     val sActor = context.system.actorOf(callbackActor)
     val flow =
       Flow[Message].map {
-        case tm: TextMessage if tm.getStrictText == "keepalive" =>
-          Nil
         case tm: TextMessage ⇒
           (tm, bean)
         case bm: BinaryMessage =>
@@ -174,6 +172,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case tmb: (TextMessage, CommandBean) if isStreamingText =>
         val returnText = handleTextStream(tmb._1.textStream, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
+      case tmb: (TextMessage, CommandBean) if tmb._1.getStrictText == "keepalive" => // discard
       case tmb: (TextMessage, CommandBean) =>
         val returnText = handleText(tmb._1.getStrictText, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
