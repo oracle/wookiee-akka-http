@@ -1,7 +1,6 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
 import java.io.{ByteArrayOutputStream, PrintStream}
-import java.util.concurrent.TimeUnit
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
 import akka.actor.{Actor, ActorRef, Props}
@@ -11,24 +10,22 @@ import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
-
-import scala.concurrent.duration._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
-import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpManager}
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
+import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpSettings}
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
-import scala.util.Try
 
 
 trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
+  val settings = AkkaHttpSettings(config)
 
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
@@ -45,11 +42,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
   // Should we keep this websocket alive with heartbeat messages, will cause us to send a TextMessage("heartbeat")
   // back to the client every 30 seconds, override with true if you want just this websocket to do it
-  def keepAliveOn: Boolean = Try(config.getBoolean(
-    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.enabled")).getOrElse(false)
-  // How often to send a keep alive heartbeat message back
-  protected val keepAliveFrequency = Try(config.getDuration(
-    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS)).getOrElse(30) seconds
+  def keepAliveOn: Boolean = settings.ws.keepAliveOn
 
   // Override for websocket closure code, callback will be None if we aren't connected yet
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
@@ -89,7 +82,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         // TODO Add support for binary message compression if anyone ends up wanting it
         case mess => mess
       }
-    val livingSource = if (keepAliveOn) source.keepAlive(keepAliveFrequency, () => TextMessage("heartbeat"))
+    val livingSource = if (keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
       else source
 
     Flow.fromSinkAndSourceCoupled(sink, livingSource)
