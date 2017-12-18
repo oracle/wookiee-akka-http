@@ -1,6 +1,7 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
 import java.io.{ByteArrayOutputStream, PrintStream}
+import java.util.concurrent.TimeUnit
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
 import akka.actor.{Actor, ActorRef, Props}
@@ -28,8 +29,7 @@ import scala.util.Try
 
 trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
-  val keepAlive = Try(config.getBoolean(
-    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives")).getOrElse(true)
+
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
@@ -42,6 +42,14 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
   // Override if you want the TextMessage content to be left as a stream
   def isStreamingText: Boolean = false
+
+  // Should we keep this websocket alive with heartbeat messages, will cause us to send a TextMessage("heartbeat")
+  // back to the client every 30 seconds, override with true if you want just this websocket to do it
+  def keepAliveOn: Boolean = Try(config.getBoolean(
+    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.enabled")).getOrElse(false)
+  // How often to send a keep alive heartbeat message back
+  protected val keepAliveFrequency = Try(config.getDuration(
+    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS)).getOrElse(30) seconds
 
   // Override for websocket closure code, callback will be None if we aren't connected yet
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
@@ -56,7 +64,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
-    val flow =
+    val sink =
       Flow[Message].map {
         case tm: TextMessage ⇒
           (tm, bean)
@@ -70,11 +78,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }
-    val sink: Sink[Message, Any] = if (keepAlive) {
-      flow.keepAlive(30 seconds, () => TextMessage("keepalive"))
-        .to(Sink.actorRef(sActor, CloseSocket(bean)))
-    } else flow.to(Sink.actorRef(sActor, CloseSocket(bean)))
+      }.to(Sink.actorRef(sActor, CloseSocket(bean)))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
@@ -85,8 +89,10 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         // TODO Add support for binary message compression if anyone ends up wanting it
         case mess => mess
       }
+    val livingSource = if (keepAliveOn) source.keepAlive(keepAliveFrequency, () => TextMessage("heartbeat"))
+      else source
 
-    Flow.fromSinkAndSourceCoupled(sink, source)
+    Flow.fromSinkAndSourceCoupled(sink, livingSource)
   }
 
   // Route used to send along our websocket messages and make the initial handshake
@@ -172,7 +178,6 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case tmb: (TextMessage, CommandBean) if isStreamingText =>
         val returnText = handleTextStream(tmb._1.textStream, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
-      case tmb: (TextMessage, CommandBean) if tmb._1.getStrictText == "keepalive" => // discard
       case tmb: (TextMessage, CommandBean) =>
         val returnText = handleText(tmb._1.getStrictText, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
