@@ -10,26 +10,23 @@ import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
-
-import scala.concurrent.duration._
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
-import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpManager}
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
+import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpSettings}
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
-import scala.util.Try
 
 
 trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
-  val keepAlive = Try(config.getBoolean(
-    s"${AkkaHttpManager.ComponentName}.websocket-keep-alives")).getOrElse(true)
+  val settings = AkkaHttpSettings(config)
+
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
@@ -42,6 +39,10 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
   // Override if you want the TextMessage content to be left as a stream
   def isStreamingText: Boolean = false
+
+  // Should we keep this websocket alive with heartbeat messages, will cause us to send a TextMessage("heartbeat")
+  // back to the client every 30 seconds, override with true if you want just this websocket to do it
+  def keepAliveOn: Boolean = settings.ws.keepAliveOn
 
   // Override for websocket closure code, callback will be None if we aren't connected yet
   def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
@@ -56,7 +57,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor)
-    val flow =
+    val sink =
       Flow[Message].map {
         case tm: TextMessage if tm.getStrictText == "keepalive" =>
           Nil
@@ -72,11 +73,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }
-    val sink: Sink[Message, Any] = if (keepAlive) {
-      flow.keepAlive(30 seconds, () => TextMessage("keepalive"))
-        .to(Sink.actorRef(sActor, CloseSocket(bean)))
-    } else flow.to(Sink.actorRef(sActor, CloseSocket(bean)))
+      }.to(Sink.actorRef(sActor, CloseSocket(bean)))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
@@ -87,8 +84,10 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         // TODO Add support for binary message compression if anyone ends up wanting it
         case mess => mess
       }
+    val livingSource = if (keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
+      else source
 
-    Flow.fromSinkAndSourceCoupled(sink, source)
+    Flow.fromSinkAndSourceCoupled(sink, livingSource)
   }
 
   // Route used to send along our websocket messages and make the initial handshake
@@ -174,7 +173,6 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case tmb: (TextMessage, CommandBean) if isStreamingText =>
         val returnText = handleTextStream(tmb._1.textStream, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
-      case tmb: (TextMessage, CommandBean) if tmb._1.getStrictText == "keepalive" => // discard
       case tmb: (TextMessage, CommandBean) =>
         val returnText = handleText(tmb._1.getStrictText, tmb._2, retActor)
         returnText.foreach(tx => retActor ! tx)
