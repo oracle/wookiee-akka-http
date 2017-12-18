@@ -115,8 +115,8 @@ object AkkaHttpSettings {
     val wsInterface = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.websocket-server.interface", config.getString, "0.0.0.0")
     // How often to send a keep alive heartbeat message back
-    val keepAliveFrequency = Try(config.getDuration(
-      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS)).getOrElse(30) seconds
+    val keepAliveFrequency: FiniteDuration = Try(config.getDuration(
+      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS).toInt).getOrElse(30) seconds
     val keepAliveOn: Boolean = Try(config.getBoolean(
       s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.enabled")).getOrElse(false)
     val serverSettings = ServerSettings(config)
