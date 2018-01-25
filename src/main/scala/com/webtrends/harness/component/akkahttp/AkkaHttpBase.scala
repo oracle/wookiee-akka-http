@@ -24,7 +24,8 @@ import scala.util.{Failure, Success}
 case class AkkaHttpCommandResponse[T](data: Option[T],
                                       responseType: String = "application/json",
                                       marshaller: Option[ToResponseMarshaller[T]] = None,
-                                      statusCode: Option[StatusCode] = None) extends BaseCommandResponse[T]
+                                      statusCode: Option[StatusCode] = None,
+                                      headers: Seq[HttpHeader] = List()) extends BaseCommandResponse[T]
 
 
 case class AkkaHttpRejection(rejection: String)
@@ -97,22 +98,25 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                     inputBean.addValue(QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
-                        case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
-                          route
-                        case Success(AkkaHttpCommandResponse(Some(data), ct, None, sc)) =>
-                          val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
-                          completeWith(succMarshaller) { completeFunc =>
-                            completeFunc((sc.getOrElse(OK), immutable.Seq(
-                              parseHeader("Content-Type", ct)).flatten, data))
-                          }
-                        case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
-                          completeWith(marshaller) { completeFunc => completeFunc(data) }
-                        case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
-                          log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
-                          complete(InternalServerError)
-                        case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
-                          complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
+                        case Success(akkaResp: AkkaHttpCommandResponse[T]) => respondWithHeaders(akkaResp.headers: _*) {
+                          akkaResp match {
+                            case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
+                              route
+                            case AkkaHttpCommandResponse(Some(data), ct, None, sc, _) =>
+                              val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+                              completeWith(succMarshaller) { completeFunc =>
+                                completeFunc((sc.getOrElse(OK), immutable.Seq(
+                                  parseHeader("Content-Type", ct)).flatten, data))
+                              }
+                            case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
+                              completeWith(marshaller) { completeFunc => completeFunc(data) }
+                            case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
+                              log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                              complete(InternalServerError)
+                            case AkkaHttpCommandResponse(None, _, _, sc, _) =>
+                              complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
+                          }}
                         case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                           case (None, _) => complete(NoContent)
                           case (Some(data), _) =>
