@@ -9,13 +9,13 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
 import com.webtrends.harness.component.akkahttp.util.TestEntity
 import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
-import AkkaHttpBase._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
@@ -27,7 +27,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     var routes = Set.empty[Route]
 
     new AkkaHttpMulti with BaseCommand {
-      override def allPaths = List(Endpoint("getTest", HttpMethods.GET),
+      override def allPaths = List(
+        Endpoint("getTest", HttpMethods.GET),
         Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])),
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/strings/$count", HttpMethods.GET),
@@ -36,33 +37,30 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         Endpoint("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET))
       override def addRoute(r: Route): Unit =
         routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-        val path = bean.get.getValue[String](AkkaHttpBase.Path).getOrElse("")
-        val method = bean.get.getValue[HttpMethod](AkkaHttpBase.Method).getOrElse(HttpMethods.GET)
-        (path, method) match {
-          case ("getTest", HttpMethods.GET) =>
-            val meowVal = getQueryParams(bean.get).getOrElse("meow", "")
-            Future.successful(CommandResponse(Some(s"getted$meowVal".asInstanceOf[T])))
-          case ("postTest", HttpMethods.POST) =>
-            val meowVal = bean.get.getValue[String]("meow").getOrElse("")
-            val payload = getPayload[TestEntity](bean.get)
-            val load = payload.map(te => te.copy(te.v0 + meowVal, te.v1)).getOrElse(TestEntity("default1", 0.2))
-            Future.successful(CommandResponse(Some(load.asInstanceOf[T])))
-          case ("two/strings", HttpMethods.GET) =>
-            Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
-          case ("two/strings/$count", HttpMethods.GET) =>
-            Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-              holder._1.asInstanceOf[T])))
-          case ("separated/$arg1/args/$arg2", HttpMethods.GET) =>
-            Future.successful(CommandResponse(bean.get.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
-              (holder._1 + holder._2).asInstanceOf[T])))
-          case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
-            val params = getURIParams[Holder3](bean.get)
-            Future.successful(CommandResponse(Some((params._1 + params._2 + params._3).asInstanceOf[T])))
-          case ("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET) =>
-            val params = getURIParams[Holder6](bean.get)
-            Future.successful(CommandResponse(Some((bean.get("ver") + params._2 + params._3 + params._4 + bean.get("four") + params._6).asInstanceOf[T])))
-        }
+
+      override def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]] = {
+        case ("getTest", HttpMethods.GET) =>
+          val meowVal = getQueryParams(bean).getOrElse("meow", "")
+          Future.successful(CommandResponse(Some(s"getted$meowVal")))
+        case ("postTest", HttpMethods.POST) =>
+          val meowVal = bean.getValue[String]("meow").getOrElse("")
+          val payload = getPayload[TestEntity](bean)
+          val load = payload.map(te => te.copy(te.v0 + meowVal, te.v1)).getOrElse(TestEntity("default1", 0.2))
+          Future.successful(CommandResponse(Some(load)))
+        case ("two/strings", HttpMethods.GET) =>
+          Future.successful(CommandResponse(Some("getted2")))
+        case ("two/strings/$count", HttpMethods.GET) =>
+          Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+            holder._1)))
+        case ("separated/$arg1/args/$arg2", HttpMethods.GET) =>
+          Future.successful(CommandResponse(bean.getValue[Holder2](AkkaHttpBase.Segments).map(holder =>
+            holder._1 + holder._2)))
+        case ("one/$a1/two/$a2/three/$3/four", HttpMethods.GET) =>
+          val params = getURIParams[Holder3](bean)
+          Future.successful(CommandResponse(Some(params._1 + params._2 + params._3)))
+        case ("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET) =>
+          val params = getURIParams[Holder6](bean)
+          Future.successful(CommandResponse(Some(bean("ver") + params._2 + params._3 + params._4 + bean("four") + params._6)))
       }
 
       override protected val log = Logger.getLogger(getClass)
@@ -123,8 +121,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
   }
 
   test("should respect endpoint addition order") {
-    forAll { ent: Int =>
-      var routes = Collections.synchronizedSet[Route](new java.util.LinkedHashSet[Route]())
+    forAll { _: Int =>
+      val routes = Collections.synchronizedSet[Route](new java.util.LinkedHashSet[Route]())
 
       new AkkaHttpMulti with BaseCommand {
         override def allPaths = List(
@@ -136,21 +134,17 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         override def addRoute(r: Route): Unit =
           routes.add(r)
 
-        override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-          val path = bean.get.getValue[String](AkkaHttpBase.Path).getOrElse("")
-          val method = bean.get.getValue[HttpMethod](AkkaHttpBase.Method).getOrElse(HttpMethods.GET)
-          (path, method) match {
-            case ("two/strings", HttpMethods.GET) =>
-              Future.successful(CommandResponse(Some("getted2".asInstanceOf[T])))
-            case ("two/$arg", HttpMethods.GET) =>
-              Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-                holder._1.asInstanceOf[T])))
-            case ("one/strings", HttpMethods.GET) =>
-              Future.successful(CommandResponse(Some("getted1".asInstanceOf[T])))
-            case ("one/$arg", HttpMethods.GET) =>
-              Future.successful(CommandResponse(bean.get.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-                holder._1.asInstanceOf[T])))
-          }
+        override def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]] = {
+          case ("two/strings", HttpMethods.GET) =>
+            Future.successful(CommandResponse(Some("getted2")))
+          case ("two/$arg", HttpMethods.GET) =>
+            Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+              holder._1)))
+          case ("one/strings", HttpMethods.GET) =>
+            Future.successful(CommandResponse(Some("getted1")))
+          case ("one/$arg", HttpMethods.GET) =>
+            Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+              holder._1)))
         }
 
         override protected val log = Logger.getLogger(getClass)
@@ -190,19 +184,15 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       override def addRoute(r: Route): Unit =
         routes.add(r)
 
-      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
-        val path = bean.get.getValue[String](AkkaHttpBase.Path).getOrElse("")
-        val method = bean.get.getValue[HttpMethod](AkkaHttpBase.Method).getOrElse(HttpMethods.GET)
-        (path, method) match {
-          case ("same/path", HttpMethods.POST) =>
-            Future.successful(CommandResponse(Some("POST".asInstanceOf[T])))
-          case ("same/path", HttpMethods.PUT) =>
-            Future.successful(CommandResponse(Some("PUT".asInstanceOf[T])))
-          case ("same/path", HttpMethods.DELETE) =>
-            Future.successful(CommandResponse(Some("DELETE".asInstanceOf[T])))
-          case ("same/path", HttpMethods.GET) =>
-            Future.successful(CommandResponse(Some("GET".asInstanceOf[T])))
-        }
+      override def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]] = {
+        case ("same/path", HttpMethods.POST) =>
+          Future.successful(CommandResponse(Some("POST")))
+        case ("same/path", HttpMethods.PUT) =>
+          Future.successful(CommandResponse(Some("PUT")))
+        case ("same/path", HttpMethods.DELETE) =>
+          Future.successful(CommandResponse(Some("DELETE")))
+        case ("same/path", HttpMethods.GET) =>
+          Future.successful(CommandResponse(Some("GET")))
       }
 
       override protected val log = Logger.getLogger(getClass)

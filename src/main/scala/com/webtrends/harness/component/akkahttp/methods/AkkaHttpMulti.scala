@@ -1,12 +1,16 @@
 package com.webtrends.harness.component.akkahttp.methods
 
+import akka.http.scaladsl.marshalling.ToResponseMarshaller
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
-import com.webtrends.harness.command.{BaseCommand, CommandBean}
+import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
+import scala.concurrent.ExecutionContext.Implicits.global
+
+import scala.concurrent.Future
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
@@ -15,6 +19,12 @@ import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
+
+  // Process the command, the (String, HttpMethod) inputs will be the from the allPaths Endpoint
+  // that was hit. So if we hit Endpoint("some/$var1/path", HttpMethods.GET) then the
+  // values will be ("some/$var1/path", HttpMethods.GET). This method should match on
+  // the endpoint that was hit and do some operation on it that returns an AkkaHttpCommandResponse.
+  def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]]
 
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
@@ -101,6 +111,27 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
           log.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
+    }
+  }
+
+  // Overriding this and using to pull out method and path, saving end users from having to
+  // know how to do that.
+  override def execute[T:Manifest](bean: Option[CommandBean]) : Future[BaseCommandResponse[T]] = {
+    bean match {
+      case Some(b) =>
+        val path = b.getValue[String](AkkaHttpBase.Path)
+        val method = b.getValue[HttpMethod](AkkaHttpBase.Method)
+        if (path.isDefined && method.isDefined) {
+          process(b)(path.get, method.get).map {
+            case cr: AkkaHttpCommandResponse[_] =>
+              cr.copy(data = cr.data.map(_.asInstanceOf[T]),
+                marshaller = cr.marshaller.map(_.asInstanceOf[ToResponseMarshaller[T]]))
+            case bcr: BaseCommandResponse[_] =>
+              AkkaHttpCommandResponse(bcr.data.map(_.asInstanceOf[T]), bcr.responseType)
+          }
+        } else Future.failed(CommandException(getClass.getSimpleName, "No path or method on matched endpoint."))
+      case None =>
+        Future.failed(CommandException(getClass.getSimpleName, "No bean on request, can't complete."))
     }
   }
 

@@ -12,11 +12,11 @@ import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
-import AkkaHttpBase._
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -63,6 +63,10 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
         fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
       completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+    case ex: Throwable =>
+      val firstClass = ex.getStackTrace.headOption.map(_.getClassName).getOrElse("<unknown class>")
+      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back")
+      complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
