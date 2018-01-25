@@ -59,6 +59,8 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
     val sActor = context.system.actorOf(callbackActor)
     val sink =
       Flow[Message].map {
+        case tm: TextMessage if tm.getStrictText == "keepalive" =>
+          Nil
         case tm: TextMessage ⇒
           (tm, bean)
         case bm: BinaryMessage =>
