@@ -38,9 +38,9 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
       path("favicon.ico") {
         complete(StatusCodes.NoContent)
       } ~
-        path("ping") {
-          complete(s"pong: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
-        }
+      path("ping") {
+        complete(s"pong: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
+      }
     }
 
   val bindingFuture = serverSource

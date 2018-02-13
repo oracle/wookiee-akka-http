@@ -147,9 +147,6 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
     case StopComponent => unbind
   }
 
-  // This should probably be overriden to get some custom information about the health of this actor
-  override protected def getHealth: Future[HealthComponent] = super.getHealth
-
   override def checkHealth : Future[HealthComponent] = {
     getPing(pingUrl).mapAll {
       case Success(_) =>
