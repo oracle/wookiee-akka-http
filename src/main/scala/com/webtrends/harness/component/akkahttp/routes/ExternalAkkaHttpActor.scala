@@ -76,7 +76,6 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
           HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Failed to ping server at $pingUrl.")
         case Failure(_) =>
           HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Unexpected error pinging server.")
-
       }
   }
 
