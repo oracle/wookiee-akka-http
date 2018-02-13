@@ -31,6 +31,7 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   def serverName = "akka-http external-server"
   val serverSource = Http().bind(interface, port, settings = settings)
+  val pingUrl = s"http://$interface:$port/ping"
 
   val baseRoutes =
     get {
@@ -60,32 +61,20 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
     reject()
   } else {
     ExternalAkkaHttpRouteContainer.getRoutes.foldLeft(baseRoutes)(_ ~ _)
-      //.reduceLeft(_ ~ _)
   }
 
   override def receive = super.receive orElse {
     case AkkaHttpUnbind => unbind
     case StopComponent => unbind
   }
-/*
-  override def getHealth : Future[HealthComponent] = {
-      getPing.mapAll {
+
+  override def checkHealth : Future[HealthComponent] = {
+      getPing(pingUrl).mapAll {
         case Success(_) =>
-          HealthComponent(self.path.toString, ComponentState.NORMAL, "Healthy")
+          HealthComponent(self.path.toString, ComponentState.NORMAL, s"Healthy: Ping to $pingUrl.")
         case Failure(_) =>
-          HealthComponent(self.path.toString, ComponentState.CRITICAL, "Failed to ping server.")
+          HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Failed to ping server at $pingUrl.")
       }
   }
-*/
-  def getPing : Future[Boolean] = {
-    val response = requestAsString(HttpRequest(HttpMethods.GET, s"http://$interface:$port/ping"))
 
-    response.map {
-      case (response,body) if response.status == StatusCodes.Success =>
-        body.startsWith("pong")
-      case (response,body) =>
-        log.error(s"Unexpected response from ping check with status ${response.status}: $body")
-        false
-    }
-  }
 }
