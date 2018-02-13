@@ -70,10 +70,12 @@ class ExternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   override def checkHealth : Future[HealthComponent] = {
       getPing(pingUrl).mapAll {
-        case Success(_) =>
+        case Success(true) =>
           HealthComponent(self.path.toString, ComponentState.NORMAL, s"Healthy: Ping to $pingUrl.")
-        case Failure(_) =>
+        case Success(false) =>
           HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Failed to ping server at $pingUrl.")
+        case Failure(_) =>
+          HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Unexpected error pinging server.")
       }
   }
 

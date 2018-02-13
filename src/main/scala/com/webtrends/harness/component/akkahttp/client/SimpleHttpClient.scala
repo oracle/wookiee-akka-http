@@ -36,10 +36,10 @@ trait SimpleHttpClient extends ActorLoggingAdapter { this: Actor =>
     val response = requestAsString(HttpRequest(HttpMethods.GET, url))
 
     response.map {
-      case (response,body) if response.status == StatusCodes.Success =>
+      case (resp,body) if resp.status == StatusCodes.OK =>
         body.startsWith("pong")
-      case (response,body) =>
-        log.error(s"Unexpected response from ping check with status ${response.status}: $body")
+      case (resp,body) =>
+        log.error(s"Unexpected response from ping check with status ${resp.status}: $body")
         false
     }
   }
