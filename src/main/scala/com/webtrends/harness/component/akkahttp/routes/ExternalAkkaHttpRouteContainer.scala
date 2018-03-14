@@ -11,6 +11,6 @@ object ExternalAkkaHttpRouteContainer {
   def isEmpty = routes.isEmpty
   def addRoute(r: Route) = routes.add(r)
   def getRoutes = routes.toSet
-  protected[akkahttp] def clearRoutes() = routes.clear()
+  def clearRoutes() = routes.clear()
 }
 
