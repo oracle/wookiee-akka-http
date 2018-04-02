@@ -14,7 +14,7 @@ trait RouteContainers {
   def isEmpty = routes.isEmpty
   def getRoutes = routes.toList
 
-  protected[akkahttp] def clearRoutes() = {
+  def clearRoutes() = {
     routes.synchronized {
       routes.clear()
     }
