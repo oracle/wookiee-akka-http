@@ -1,4 +1,4 @@
-# Wookiee Examples - Basic Service
+# Wookiee Examples - Akka Http Service
 A one line Service!! This is an example of how easy it is to get your project running
 on Wookiee. This one line service can be run just like it would be on a server.
 
