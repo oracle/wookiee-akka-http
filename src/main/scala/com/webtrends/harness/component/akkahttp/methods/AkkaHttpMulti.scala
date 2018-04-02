@@ -1,15 +1,21 @@
 package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.marshalling.ToResponseMarshaller
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.model.StatusCodes.OK
+import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpResponse}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.collection.immutable.ListMap
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**
@@ -55,54 +61,57 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
 
   // Method that adds all routes from allPaths
   override def createRoutes() = {
+    // Path String to converted PathMatcher and number of Query Segments (variables on the path)
+    val pathsToSegments = mutable.HashMap[String, Directive1[AkkaHttpPathSegments]]()
+
     allPaths.foreach { endpoint =>
-      var segCount = 0
       // Split the path into segments and map those to their akka http objects
       val segs = endpoint.path.split("/").filter(_.nonEmpty).toSeq
       try {
-        // Combine all segments into an akka path
-        val dir = segs.tail.foldLeft(segs.head.asInstanceOf[Any]) { (x, y) =>
-          y match {
-            case s1: String if s1.startsWith("$") =>
-              segCount += 1
-              (x match {
-                case p: String => if (p.startsWith("$")) {
-                  segCount += 1
-                  Segment / Segment
-                } else p / Segment
-                case p: PathMatcher[Unit] if segCount == 1 => p / Segment
-                case p: PathMatcher[Tuple1[String]] if segCount == 2 => p / Segment
-                case p: PathMatcher[(String, String)] if segCount == 3 => p / Segment
-                case p: PathMatcher[(String, String, String)] if segCount == 4 => p / Segment
-                case p: PathMatcher[(String, String, String, String)] if segCount == 5 => p / Segment
-                case p: PathMatcher[(String, String, String, String, String)] if segCount == 6 => p / Segment
-              }).asInstanceOf[PathMatcher[_]]
-            case s1: String =>
-              (x match {
-                case p: String => if (p.startsWith("$")) {
-                  segCount += 1
-                  Segment / s1
-                } else p / s1
-                case p: PathMatcher[Unit] if segCount == 0 => p / s1
-                case p: PathMatcher[Tuple1[String]] if segCount == 1 => p / s1
-                case p: PathMatcher[(String, String)] if segCount == 2 => p / s1
-                case p: PathMatcher[(String, String, String)] if segCount == 3 => p / s1
-                case p: PathMatcher[(String, String, String, String)] if segCount == 4 => p / s1
-                case p: PathMatcher[(String, String, String, String, String)] if segCount == 5 => p / s1
-              }).asInstanceOf[PathMatcher[_]]
+        // Combine all segments into an akka path, put into memoization map of segments to segment count
+        currentPath = pathsToSegments.getOrElseUpdate(endpoint.path, {
+          var segCount = 0
+          // Build the path as a PathMatcher with Segments for arguments
+          val dir = segs.tail.foldLeft(segs.head.asInstanceOf[Any]) { (x, y) =>
+            y match {
+              case s1: String if s1.startsWith("$") =>
+                segCount += 1
+                (x match {
+                  case pStr: String => if (pStr.startsWith("$")) {
+                    segCount += 1
+                    Segment / Segment
+                  } else pStr / Segment
+                  case pMatch: PathMatcher[Unit] if segCount == 1 => pMatch / Segment
+                  case pMatch: PathMatcher[Tuple1[String]] if segCount == 2 => pMatch / Segment
+                  case pMatch: PathMatcher[(String, String)] if segCount == 3 => pMatch / Segment
+                  case pMatch: PathMatcher[(String, String, String)] if segCount == 4 => pMatch / Segment
+                  case pMatch: PathMatcher[(String, String, String, String)] if segCount == 5 => pMatch / Segment
+                  case pMatch: PathMatcher[(String, String, String, String, String)] if segCount == 6 => pMatch / Segment
+                }).asInstanceOf[PathMatcher[_]]
+              case s1: String =>
+                (x match {
+                  case pStr: String => if (pStr.startsWith("$")) {
+                    segCount += 1
+                    Segment / s1
+                  } else pStr / s1
+                  case pMatch: PathMatcher[_] => pMatch / s1
+                }).asInstanceOf[PathMatcher[_]]
+            }
           }
-        }
-        // Add holders for query params if applicable
-        currentPath = segCount match {
-          case 0 if segs.size == 1 => p(endpoint.path) & provide(new AkkaHttpPathSegments {})
-          case 0 => p(dir.asInstanceOf[PathMatcher[Unit]]) & provide(new AkkaHttpPathSegments {})
-          case 1 => p(dir.asInstanceOf[PathMatcher[Tuple1[String]]]).as(Holder1)
-          case 2 => p(dir.asInstanceOf[PathMatcher[(String, String)]]).as(Holder2)
-          case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
-          case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
-          case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
-          case 6 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String, String)]]).as(Holder6)
-        }
+
+          // Create holders for any arguments on the query path
+          segCount match {
+            case 0 if segs.size == 1 => p(endpoint.path) & provide(new AkkaHttpPathSegments {})
+            case 0 => p(dir.asInstanceOf[PathMatcher[Unit]]) & provide(new AkkaHttpPathSegments {})
+            case 1 => p(dir.asInstanceOf[PathMatcher[Tuple1[String]]]).as(Holder1)
+            case 2 => p(dir.asInstanceOf[PathMatcher[(String, String)]]).as(Holder2)
+            case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
+            case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
+            case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
+            case 6 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String, String)]]).as(Holder6)
+          }
+        })
+
         // Can override this method to do something else with the endpoint
         endpointExtraProcessing(endpoint)
         addRoute(commandInnerDirective(endpoint.path, endpoint.method))
@@ -111,6 +120,45 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
           log.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
+    }
+
+    // Add an OPTIONS endpoint for all paths, group them by path string for Allowed methods
+    try {
+      // Doing this instead of a functional approach to maintain
+      // order of evaluation for allPaths in the Options calls too
+      var endpointMap = ListMap[String, ListBuffer[HttpMethod]]()
+      val pathsAndMethods = allPaths.foreach { endpoint =>
+        endpointMap.get(endpoint.path) match {
+          case Some(methods) => methods.append(endpoint.method)
+          case None => endpointMap = endpointMap + (endpoint.path -> ListBuffer(endpoint.method))
+        }
+      }
+      // Create inner option routes
+      val optionRoutes = endpointMap.map { case (pth, methods) =>
+        ignoreTrailingSlash {
+          pathsToSegments(pth) { segments: AkkaHttpPathSegments =>
+            CorsDirectives.cors(corsSettings) {
+              handleOptions(pth, methods.toList, segments)
+            }
+          }
+        }
+      }
+
+      addRoute(options {
+        optionRoutes.reduceLeft(_ ~ _)
+      })
+    } catch {
+      case ex: Throwable =>
+        log.error(s"Error adding OPTION paths for this class, will not support OPTION(s) for endpoints here", ex)
+    }
+  }
+
+  // By the time we are in here we have checked that the path matches and this is an OPTION request
+  // Override for custom OPTION behavior
+  def handleOptions(optPath: String, methodList: List[HttpMethod], segments: AkkaHttpPathSegments): Route = {
+    val methWithOption = methodList :+ HttpMethods.OPTIONS
+    complete {
+      HttpResponse(OK).withHeaders(`Access-Control-Allow-Methods`(methWithOption))
     }
   }
 

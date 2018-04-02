@@ -1,13 +1,12 @@
 package com.webtrends.harness.component.akkahttp.directives
 
-import java.util.Collections
-
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp._
@@ -17,14 +16,14 @@ import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
 
-import scala.collection.JavaConversions._
+import scala.collection.immutable
 import scala.concurrent.Future
 
 
 class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers with ScalatestRouteTest with PredefinedToEntityMarshallers {
 
   test("should handle multiple endpoints") {
-    var routes = Set.empty[Route]
+    var routes = collection.mutable.LinkedHashSet[Route]()
 
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(
@@ -121,58 +120,54 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
   }
 
   test("should respect endpoint addition order") {
-    forAll { _: Int =>
-      val routes = Collections.synchronizedSet[Route](new java.util.LinkedHashSet[Route]())
+    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
+    val routes = getToughRoutes()
 
-      new AkkaHttpMulti with BaseCommand {
-        override def allPaths = List(
-          Endpoint("two/strings", HttpMethods.GET),
-          Endpoint("two/$arg", HttpMethods.GET),
-          Endpoint("one/strings", HttpMethods.GET),
-          Endpoint("one/$arg", HttpMethods.GET))
+    Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"getted2\""
+    }
+    Get("/two/arg") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"arg\""
+    }
+    Get("/one/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"getted1\""
+    }
+    Get("/one/arg1") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"arg1\""
+    }
+  }
 
-        override def addRoute(r: Route): Unit =
-          routes.add(r)
+  test("should support OPTION on all endpoints") {
+    val routes = getToughRoutes()
 
-        override def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]] = {
-          case ("two/strings", HttpMethods.GET) =>
-            Future.successful(CommandResponse(Some("getted2")))
-          case ("two/$arg", HttpMethods.GET) =>
-            Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-              holder._1)))
-          case ("one/strings", HttpMethods.GET) =>
-            Future.successful(CommandResponse(Some("getted1")))
-          case ("one/$arg", HttpMethods.GET) =>
-            Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
-              holder._1)))
-        }
-
-        override protected val log = Logger.getLogger(getClass)
-      }
-
-      import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
-
-      Get("/two/strings") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.OK
-        entityAs[String] mustEqual "\"getted2\""
-      }
-      Get("/two/arg") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.OK
-        entityAs[String] mustEqual "\"arg\""
-      }
-      Get("/one/strings") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.OK
-        entityAs[String] mustEqual "\"getted1\""
-      }
-      Get("/one/arg1") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.OK
-        entityAs[String] mustEqual "\"arg1\""
-      }
+    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
+      header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+    }
+    Options("/two/arg") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, POST, OPTIONS"
+    }
+    Options("/one/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+    }
+    Options("/one/arg1").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
+      header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
     }
   }
 
   test("give 415 responses for bad json every time, instead of 405") {
-    val routes = Collections.synchronizedSet[Route](new java.util.LinkedHashSet[Route]())
+    val routes = collection.mutable.LinkedHashSet[Route]()
 
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(
@@ -226,5 +221,48 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
   test("parse headers") {
     parseHeader(":invalid", ":value").isEmpty mustEqual true
     parseHeader("Content-Type", "application/json").isDefined mustEqual true
+  }
+
+  private def getToughRoutes(): List[Route] = {
+    val routes = collection.mutable.LinkedHashSet[Route]()
+
+    new AkkaHttpMulti with BaseCommand {
+      override def corsSettings: CorsSettings = CorsSettings.Default(
+        CorsSettings.defaultSettings.allowGenericHttpRequests,
+        allowCredentials = true,
+        CorsSettings.defaultSettings.allowedOrigins,
+        CorsSettings.defaultSettings.allowedHeaders,
+        immutable.Seq(method),
+        CorsSettings.defaultSettings.exposedHeaders,
+        CorsSettings.defaultSettings.maxAge
+      )
+
+      override def allPaths = List(
+        Endpoint("two/strings", HttpMethods.GET),
+        Endpoint("two/$arg", HttpMethods.GET),
+        Endpoint("one/strings", HttpMethods.GET),
+        Endpoint("one/$arg", HttpMethods.GET),
+        Endpoint("two/$arg", HttpMethods.POST))
+
+      override def addRoute(r: Route): Unit =
+        routes.add(r)
+
+      override def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]] = {
+        case ("two/strings", HttpMethods.GET) =>
+          Future.successful(CommandResponse(Some("getted2")))
+        case ("two/$arg", HttpMethods.GET) =>
+          Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+            holder._1)))
+        case ("one/strings", HttpMethods.GET) =>
+          Future.successful(CommandResponse(Some("getted1")))
+        case ("one/$arg", HttpMethods.GET) =>
+          Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
+            holder._1)))
+      }
+
+      override protected val log = Logger.getLogger(getClass)
+    }
+
+    routes.toList
   }
 }
