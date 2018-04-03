@@ -2,7 +2,7 @@ package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
+import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, `Access-Control-Request-Method`}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -149,6 +149,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
       header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
       header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+    }
+    Options("/two/arg").withHeaders(`Access-Control-Request-Method`(HttpMethods.GET)) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
     }
     Options("/two/arg") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK

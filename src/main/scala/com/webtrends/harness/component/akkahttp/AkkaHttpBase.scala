@@ -17,6 +17,7 @@ import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteCont
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -190,7 +191,7 @@ object AkkaHttpBase {
   }
 
   def rejectionHandler: RejectionHandler = RejectionHandler
-    .default
+    .default.withFallback(corsRejectionHandler)
     .mapRejectionResponse {
       case res @ HttpResponse(s, _, HttpEntity.Strict(_, data), _) =>
         val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
