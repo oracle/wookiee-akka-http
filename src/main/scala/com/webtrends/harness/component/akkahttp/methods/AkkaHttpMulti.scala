@@ -8,6 +8,7 @@ import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
@@ -127,7 +128,7 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
       // Doing this instead of a functional approach to maintain
       // order of evaluation for allPaths in the Options calls too
       var endpointMap = ListMap[String, ListBuffer[HttpMethod]]()
-      val pathsAndMethods = allPaths.foreach { endpoint =>
+      allPaths.foreach { endpoint =>
         endpointMap.get(endpoint.path) match {
           case Some(methods) => methods.append(endpoint.method)
           case None => endpointMap = endpointMap + (endpoint.path -> ListBuffer(endpoint.method))
@@ -137,8 +138,10 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
       val optionRoutes = endpointMap.map { case (pth, methods) =>
         ignoreTrailingSlash {
           pathsToSegments(pth) { segments: AkkaHttpPathSegments =>
-            CorsDirectives.cors(corsSettings) {
-              handleOptions(pth, methods.toList, segments)
+            handleRejections(corsRejectionHandler) {
+              CorsDirectives.cors(corsSettings(methods.toList)) {
+                handleOptions(pth, methods.toList, segments)
+              }
             }
           }
         }
