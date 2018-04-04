@@ -12,8 +12,12 @@ import scala.collection._
 trait AkkaHttpCORS extends AkkaHttpBase {
   this: BaseCommand =>
 
-  def corsSettings: CorsSettings = corsSettings(immutable.Seq(method))
-  
+  def corsSettings: CorsSettings = AkkaHttpCORS.corsSettings(immutable.Seq(method))
+
+  override def httpMethod(method: HttpMethod): Directive0 = CorsDirectives.cors(corsSettings) & super.httpMethod(method)
+}
+
+object AkkaHttpCORS {
   def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
     CorsSettings.defaultSettings.allowGenericHttpRequests,
     CorsSettings.defaultSettings.allowCredentials,
@@ -23,6 +27,4 @@ trait AkkaHttpCORS extends AkkaHttpBase {
     CorsSettings.defaultSettings.exposedHeaders,
     CorsSettings.defaultSettings.maxAge
   )
-
-  override def httpMethod(method: HttpMethod): Directive0 = CorsDirectives.cors(corsSettings) & super.httpMethod(method)
 }

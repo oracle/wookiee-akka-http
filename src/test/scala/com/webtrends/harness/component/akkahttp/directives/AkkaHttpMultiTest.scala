@@ -230,16 +230,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     val routes = collection.mutable.LinkedHashSet[Route]()
 
     new AkkaHttpMulti with BaseCommand {
-      override def corsSettings: CorsSettings = CorsSettings.Default(
-        CorsSettings.defaultSettings.allowGenericHttpRequests,
-        allowCredentials = true,
-        CorsSettings.defaultSettings.allowedOrigins,
-        CorsSettings.defaultSettings.allowedHeaders,
-        immutable.Seq(method),
-        CorsSettings.defaultSettings.exposedHeaders,
-        CorsSettings.defaultSettings.maxAge
-      )
-
       override def allPaths = List(
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/$arg", HttpMethods.GET),

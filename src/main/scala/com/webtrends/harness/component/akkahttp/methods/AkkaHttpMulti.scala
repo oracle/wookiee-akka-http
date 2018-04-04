@@ -11,10 +11,10 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
 import scala.collection.immutable.ListMap
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -23,7 +23,7 @@ import scala.concurrent.Future
   * Use this class to create a command that can handle any number of endpoints with any
   * number of HTTP methods in a single class
   */
-trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
+trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
@@ -35,6 +35,10 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
 
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
+
+  // Override giving same functionality as AkkaHttpBase so that AkkaHttpCORS doesn't break our custom CORS
+  override def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method) &
+    CorsDirectives.cors(corsSettings(immutable.Seq(method)))
 
   // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
   // where # is the number of variable segments on the URI
