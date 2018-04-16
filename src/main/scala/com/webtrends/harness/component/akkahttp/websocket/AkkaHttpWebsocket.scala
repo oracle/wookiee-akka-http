@@ -52,11 +52,11 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
   // End standard overrides
   // Props for output SocketActor
-  def callbackActor: Props = Props(new SocketActor)
+  def callbackActor(bean: CommandBean): Props = Props(new SocketActor(bean))
 
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
-    val sActor = context.system.actorOf(callbackActor)
+    val sActor = context.system.actorOf(callbackActor(bean))
     val sink =
       Flow[Message].map {
         case tm: TextMessage if tm.getStrictText == "keepalive" =>
@@ -73,7 +73,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }.to(Sink.actorRef(sActor, CloseSocket(bean)))
+      }.to(Sink.actorRef(sActor, CloseSocket()))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
@@ -154,30 +154,38 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
     }
   }
 
-  case class CloseSocket(bean: CommandBean) // We get this when websocket closes
+  case class CloseSocket() // We get this when websocket closes
   case class Connect(actorRef: ActorRef, isStreamingText: Boolean) // Initial connection
 
   // Actor that exists per each open websocket and closes when the WS closes, also routes back return messages
-  class SocketActor extends Actor {
+  class SocketActor(bean: CommandBean) extends Actor {
+    private[websocket] var callbactor: Option[ActorRef] = None
+
+    override def postStop() = {
+      log.debug(s"Closing SocketActor for path: $path")
+      onWebsocketClose(bean, callbactor)
+      super.postStop()
+    }
+
     def receive: Receive = starting
 
     def starting: Receive = {
       case Connect(actor, isStreamingText) =>
-        context become open(actor, isStreamingText)
-      case CloseSocket(bean) =>
-        onWebsocketClose(bean, None)
+        callbactor = Some(actor) // Set callback actor
+        context become open(isStreamingText)
+      case _: CloseSocket =>
         context.stop(self)
     }
 
-    def open(retActor: ActorRef, isStreamingText: Boolean): Receive = {
+    // When becoming this, callbactor should already be set
+    def open(isStreamingText: Boolean): Receive = {
       case tmb: (TextMessage, CommandBean) if isStreamingText =>
-        val returnText = handleTextStream(tmb._1.textStream, tmb._2, retActor)
-        returnText.foreach(tx => retActor ! tx)
+        val returnText = handleTextStream(tmb._1.textStream, tmb._2, callbactor.get)
+        returnText.foreach(tx => callbactor.get ! tx)
       case tmb: (TextMessage, CommandBean) =>
-        val returnText = handleText(tmb._1.getStrictText, tmb._2, retActor)
-        returnText.foreach(tx => retActor ! tx)
-      case CloseSocket(bean) =>
-        onWebsocketClose(bean, Some(retActor))
+        val returnText = handleText(tmb._1.getStrictText, tmb._2, callbactor.get)
+        returnText.foreach(tx => callbactor.get ! tx)
+      case _: CloseSocket =>
         context.stop(self)
       case _ => // Mainly for eating the keep alive
     }
