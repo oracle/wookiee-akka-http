@@ -95,6 +95,23 @@ class TestWebsocketClose extends AkkaHttpWebsocket {
   override def commandName = "TestWebsocketClose"
 }
 
+class TestWebsocketKeepAlive extends AkkaHttpWebsocket {
+  override implicit def materializer = ActorMaterializer(None, None)(context)
+
+  override val settings = {
+    val sets = AkkaHttpSettings(config)
+    sets.copy(ws = sets.ws.copy(keepAliveFrequency = 10 milliseconds, keepAliveOn = true))
+  }
+
+  override def path = "keepalive"
+
+  override def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+    Some(TextMessage("Close Actor"))
+  }
+
+  override def commandName = "TestWebsocketKeepAlive"
+}
+
 object ClosedObject {
   @volatile var closed = false
 }
@@ -112,6 +129,7 @@ class AkkaHttpWebsocketTest extends WordSpecLike
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketInternal]).path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketStream]).path).resolveOne(), Duration("5 seconds"))
   Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketClose]).path).resolveOne(), Duration("5 seconds"))
+  Await.result(system.actorSelection(system.actorOf(Props[TestWebsocketKeepAlive]).path).resolveOne(), Duration("5 seconds"))
   val routes = WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   val inRoutes = InternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
   // End of setup
@@ -325,5 +343,20 @@ class AkkaHttpWebsocketTest extends WordSpecLike
           ClosedObject.closed mustEqual true
         }
     }
+
+    "send keep alives" in {
+      val wsClient = WSProbe()
+      // WS creates a WebSocket request for testing
+      WS("/keepalive", wsClient.flow) ~> routes ~>
+        check {
+          isWebSocketUpgrade mustEqual true
+
+          Thread.sleep(300)
+          wsClient.expectMessage("heartbeat")
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+      }
   }
 }
