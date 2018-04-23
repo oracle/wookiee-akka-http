@@ -3,7 +3,7 @@ package com.webtrends.harness.component.akkahttp.websocket
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, Props, Terminated}
 import akka.http.javadsl.model.headers.{AcceptEncoding, ContentEncoding, HttpEncodingRange}
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
@@ -162,7 +162,6 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
     private[websocket] var callbactor: Option[ActorRef] = None
 
     override def postStop() = {
-      log.debug(s"Closing SocketActor for path: $path")
       onWebsocketClose(bean, callbactor)
       super.postStop()
     }
@@ -173,6 +172,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case Connect(actor, isStreamingText) =>
         callbactor = Some(actor) // Set callback actor
         context become open(isStreamingText)
+        context.watch(actor)
       case _: CloseSocket =>
         context.stop(self)
     }
@@ -185,6 +185,11 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
       case tmb: (TextMessage, CommandBean) =>
         val returnText = handleText(tmb._1.getStrictText, tmb._2, callbactor.get)
         returnText.foreach(tx => callbactor.get ! tx)
+      case Terminated(actor) =>
+        if (callbactor.exists(_.path.equals(actor.path))) {
+          log.debug(s"Linked callback actor terminated ${actor.path.name}, closing down websocket")
+          context.stop(self)
+        }
       case _: CloseSocket =>
         context.stop(self)
       case _ => // Mainly for eating the keep alive
