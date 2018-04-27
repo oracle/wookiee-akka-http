@@ -161,6 +161,8 @@ object AkkaHttpBase {
   val QueryParams = "queryParams"
   val RequestHeaders = "requestHeaders"
 
+  val MetricsPrefix = "wookiee.akka-http"
+
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
 

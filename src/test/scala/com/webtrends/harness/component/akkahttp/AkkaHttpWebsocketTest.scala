@@ -29,6 +29,11 @@ class TestWebsocket extends AkkaHttpWebsocket {
   }
 
   override def commandName = "TestWebsocket"
+
+  override def preStart() = {
+    super.preStart()
+    ClosedObject.metricName = openSocketGauge.name
+  }
 }
 
 class TestWebsocketExtra extends AkkaHttpWebsocket {
@@ -114,6 +119,7 @@ class TestWebsocketKeepAlive extends AkkaHttpWebsocket {
 
 object ClosedObject {
   @volatile var closed = false
+  @volatile var metricName = ""
 }
 
 class AkkaHttpWebsocketTest extends WordSpecLike
@@ -158,6 +164,8 @@ class AkkaHttpWebsocketTest extends WordSpecLike
           wsClient.sendCompletion()
           wsClient.expectCompletion()
         }
+
+      ClosedObject.metricName mustEqual "wookiee.akka-http.websocket.greeter-$var1.open-count"
     }
 
     "be able to send back data with a TextMessage" in {

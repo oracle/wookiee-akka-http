@@ -127,6 +127,17 @@
             <version>1.13.4</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.webtrends</groupId>
+            <artifactId>wookiee-metrics</artifactId>
+            <version>2.5.3</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.scalatest</groupId>
+                    <artifactId>scalatest_${scala.version}</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
