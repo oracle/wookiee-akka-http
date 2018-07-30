@@ -95,29 +95,33 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                     inputBean.addValue(RequestHeaders, reqHeaders)
                     inputBean.addValue(Params, params)
                     inputBean.addValue(Auth, auth)
+                    inputBean.addValue(TimeOfRequest, System.currentTimeMillis())
                     // Generic string Map of query params
                     inputBean.addValue(QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
-                        case Success(akkaResp: AkkaHttpCommandResponse[T]) => respondWithHeaders(akkaResp.headers: _*) {
-                          akkaResp match {
-                            case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
-                              route
-                            case AkkaHttpCommandResponse(Some(data), ct, None, sc, _) =>
-                              val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                                fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
-                              completeWith(succMarshaller) { completeFunc =>
-                                completeFunc((sc.getOrElse(OK), immutable.Seq(
-                                  parseHeader("Content-Type", ct)).flatten, data))
-                              }
-                            case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
-                              completeWith(marshaller) { completeFunc => completeFunc(data) }
-                            case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
-                              log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
-                              complete(InternalServerError)
-                            case AkkaHttpCommandResponse(None, _, _, sc, _) =>
-                              complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
-                          }}
+                        case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
+                          val finalResp = beforeReturn(outputBean, akkaResp)
+                          respondWithHeaders(finalResp.headers: _*) {
+                            finalResp match {
+                              case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
+                                route
+                              case AkkaHttpCommandResponse(Some(data), ct, None, sc, _) =>
+                                val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                  fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+                                completeWith(succMarshaller) { completeFunc =>
+                                  completeFunc((sc.getOrElse(OK), immutable.Seq(
+                                    parseHeader("Content-Type", ct)).flatten, data))
+                                }
+                              case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
+                                completeWith(marshaller) { completeFunc => completeFunc(data) }
+                              case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
+                                log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                                complete(InternalServerError)
+                              case AkkaHttpCommandResponse(None, _, _, sc, _) =>
+                                complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
+                            }
+                          }
                         case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
                           case (None, _) => complete(NoContent)
                           case (Some(data), _) =>
@@ -149,6 +153,12 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
     }
   }
 
+  // Override to transform response or execute other code right before we return the response
+  def beforeReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]):
+    AkkaHttpCommandResponse[T] = {
+    akkaResponse
+  }
+
   createRoutes()
 }
 
@@ -160,6 +170,7 @@ object AkkaHttpBase {
   val Method = "method"
   val QueryParams = "queryParams"
   val RequestHeaders = "requestHeaders"
+  val TimeOfRequest = "timeOfRequest"
 
   val MetricsPrefix = "wookiee.akka-http"
 
