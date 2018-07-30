@@ -95,7 +95,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                     inputBean.addValue(RequestHeaders, reqHeaders)
                     inputBean.addValue(Params, params)
                     inputBean.addValue(Auth, auth)
-                    inputBean.addValue(TimeOfRequest, System.currentTimeMillis())
+                    inputBean.addValue(TimeOfRequest, new java.lang.Long(System.currentTimeMillis()))
                     // Generic string Map of query params
                     inputBean.addValue(QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
@@ -172,7 +172,7 @@ object AkkaHttpBase {
   val RequestHeaders = "requestHeaders"
   val TimeOfRequest = "timeOfRequest"
 
-  val MetricsPrefix = "wookiee.akka-http"
+  val AHMetricsPrefix = "wookiee.akka-http"
 
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization

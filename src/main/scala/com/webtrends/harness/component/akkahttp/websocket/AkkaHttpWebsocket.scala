@@ -27,7 +27,7 @@ import scala.concurrent.Future
 trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   val settings = AkkaHttpSettings(config)
-  val openSocketGauge = Counter(s"${AkkaHttpBase.MetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
+  val openSocketGauge = Counter(s"${AkkaHttpBase.AHMetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
 
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
