@@ -101,7 +101,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                     beanDirective(inputBean, url, method) { outputBean =>
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
                         case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
-                          val finalResp = beforeReturn(outputBean, akkaResp)
+                          val codeResp = akkaResp.copy(statusCode = Some(defaultCodes(outputBean, akkaResp)))
+                          val finalResp = beforeReturn(outputBean, codeResp)
+
                           respondWithHeaders(finalResp.headers: _*) {
                             finalResp match {
                               case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
@@ -110,7 +112,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                                 val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
                                   fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
                                 completeWith(succMarshaller) { completeFunc =>
-                                  completeFunc((sc.getOrElse(OK), immutable.Seq(
+                                  completeFunc((sc.get, immutable.Seq(
                                     parseHeader("Content-Type", ct)).flatten, data))
                                 }
                               case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
@@ -119,15 +121,16 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                                 log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                                 complete(InternalServerError)
                               case AkkaHttpCommandResponse(None, _, _, sc, _) =>
-                                complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
+                                complete(sc.get.asInstanceOf[StatusCode])
                             }
                           }
                         case Success(response: BaseCommandResponse[T]) =>
-                          val finalResp = beforeReturn(outputBean,
-                            AkkaHttpCommandResponse[T](response.data, response.responseType))
+                          val akkaResp = AkkaHttpCommandResponse[T](response.data, response.responseType)
+                          val codeResp = akkaResp.copy(statusCode = Some(defaultCodes[T](outputBean, akkaResp)))
+                          val finalResp = beforeReturn(outputBean, codeResp)
 
                           (finalResp.data, finalResp.responseType) match {
-                            case (None, _) => complete(NoContent)
+                            case (None, _) => complete(finalResp.statusCode.get)
                             case (Some(data), _) =>
                               completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                           }
@@ -163,13 +166,23 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
     }
   }
 
+  // Override to change default code behavior, defaults to OK with content and NoContent without
+  def defaultCodes[T](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]): StatusCode = {
+    if (akkaResponse.data.isEmpty)
+      akkaResponse.statusCode.getOrElse(NoContent)
+    else
+      akkaResponse.statusCode.getOrElse(OK)
+  }
+
   // Override to transform response or execute other code right before we return the response
+  // Don't set statusCode to None
   def beforeReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]):
     AkkaHttpCommandResponse[T] = {
     akkaResponse
   }
 
   // Override to transform exception response or execute other code right before we return the exception response
+  // Don't set statusCode to None
   def beforeFailedReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaException: AkkaHttpException[T]):
     AkkaHttpException[T] = {
     akkaException
