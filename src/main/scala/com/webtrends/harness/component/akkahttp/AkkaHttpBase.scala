@@ -122,25 +122,35 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                                 complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
                             }
                           }
-                        case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
-                          case (None, _) => complete(NoContent)
-                          case (Some(data), _) =>
-                            completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
-                        }
+                        case Success(response: BaseCommandResponse[T]) =>
+                          val finalResp = beforeReturn(outputBean,
+                            AkkaHttpCommandResponse[T](response.data, response.responseType))
+
+                          (finalResp.data, finalResp.responseType) match {
+                            case (None, _) => complete(NoContent)
+                            case (Some(data), _) =>
+                              completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
+                          }
                         case Success(unknownResponse) =>
                           log.error(s"Got unknown response $unknownResponse")
                           complete(InternalServerError)
-                        case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
-                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
-                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
-                        case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
-                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
-                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                         case Failure(f) =>
-                          log.error(s"Command failed with $f")
-                          complete(InternalServerError)
+                          val akkaEx = beforeFailedReturn[T](outputBean, f match {
+                            case akkaEx: AkkaHttpException[T] => akkaEx
+                            case ex =>
+                              log.error(s"Command failed with $ex")
+                              AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
+                          }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
+                          akkaEx match {
+                            case AkkaHttpException(msg, statusCode, headers, None) =>
+                              val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+                              completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                            case AkkaHttpException(msg, statusCode, headers, Some(marshaller)) =>
+                              val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
+                              completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                          } // If a marshaller provided, use it to transform the entity
                       }
                     }
                   }
@@ -157,6 +167,12 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def beforeReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]):
     AkkaHttpCommandResponse[T] = {
     akkaResponse
+  }
+
+  // Override to transform exception response or execute other code right before we return the exception response
+  def beforeFailedReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaException: AkkaHttpException[T]):
+    AkkaHttpException[T] = {
+    akkaException
   }
 
   createRoutes()
@@ -208,7 +224,7 @@ object AkkaHttpBase {
   def rejectionHandler: RejectionHandler = RejectionHandler
     .default.withFallback(corsRejectionHandler)
     .mapRejectionResponse {
-      case res @ HttpResponse(s, _, HttpEntity.Strict(_, data), _) =>
+      case res @ HttpResponse(_, _, HttpEntity.Strict(_, data), _) =>
         val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
         res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
       case res => res
