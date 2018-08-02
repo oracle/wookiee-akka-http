@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, `Access-Control-Req
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp._
@@ -16,7 +15,6 @@ import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
 
-import scala.collection.immutable
 import scala.concurrent.Future
 
 
@@ -169,6 +167,30 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     }
   }
 
+  test("should not return multiple CORS values with redundant extensions") {
+    val routes = getToughRoutes(true)
+
+    HttpRequest(HttpMethods.GET, "/two/strings").withHeaders(
+      Origin(HttpOrigin("http://meow.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      val h = headers
+      val allowCreds = h.filter(_.name() == "Access-Control-Allow-Credentials")
+      allowCreds.size mustEqual 1 // Check that there were no dupes
+      allowCreds.head.value() mustEqual "true"
+      val allowOrigin = h.filter(_.name() == "Access-Control-Allow-Origin")
+      allowOrigin.size mustEqual 1 // Check that there were no dupes
+      allowOrigin.head.value() mustEqual "http://meow.com"
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"getted2\""
+    }
+
+    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
+      header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+    }
+  }
+
   test("give 415 responses for bad json every time, instead of 405") {
     val routes = collection.mutable.LinkedHashSet[Route]()
 
@@ -226,10 +248,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     parseHeader("Content-Type", "application/json").isDefined mustEqual true
   }
 
-  private def getToughRoutes(): List[Route] = {
+  private def getToughRoutes(corsExt: Boolean = false): List[Route] = {
     val routes = collection.mutable.LinkedHashSet[Route]()
 
-    new AkkaHttpMulti with BaseCommand {
+    class TestMulti extends AkkaHttpMulti with BaseCommand {
       override def allPaths = List(
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/$arg", HttpMethods.GET),
@@ -255,6 +277,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
 
       override protected val log = Logger.getLogger(getClass)
     }
+
+    if (corsExt) new TestMulti with AkkaHttpCORS
+    else new TestMulti
 
     routes.toList
   }
