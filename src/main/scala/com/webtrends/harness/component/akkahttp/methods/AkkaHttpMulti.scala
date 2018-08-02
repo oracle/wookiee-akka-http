@@ -11,6 +11,7 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
+import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
 import scala.collection.immutable.ListMap
@@ -37,8 +38,10 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
   // Override giving same functionality as AkkaHttpBase so that AkkaHttpCORS doesn't break our custom CORS
-  override def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method) &
-    CorsDirectives.cors(corsSettings(immutable.Seq(method)))
+  override def httpMethod(method: HttpMethod): Directive0 = if (this.isInstanceOf[AkkaHttpCORS])
+    AkkaHttpBase.httpMethod(method)
+  else
+    AkkaHttpBase.httpMethod(method) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
 
   // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
   // where # is the number of variable segments on the URI
