@@ -1,0 +1,12 @@
+box: nodesource/trusty
+info "Branch: $WERCKER_GIT_BRANCH"
+info "Commit: $WERCKER_GIT_COMMIT"
+info "Deploy: $DEPLOY"
+info "Deploy target: $WERCKER_DEPLOYTARGET_NAME"
+
+build:
+  steps:
+    info: "Doing nothing!"
+#    - java/maven:
+#      goals: clean install
+

@@ -2,6 +2,7 @@ package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers._
 import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
@@ -9,19 +10,23 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
+import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
 
 case class AkkaHttpCommandResponse[T](data: Option[T],
-                                      responseType: String = "_",
+                                      responseType: String = "application/json",
                                       marshaller: Option[ToResponseMarshaller[T]] = None,
-                                      statusCode: Option[StatusCode] = None) extends BaseCommandResponse[T]
+                                      statusCode: Option[StatusCode] = None,
+                                      headers: Seq[HttpHeader] = List()) extends BaseCommandResponse[T]
 
 
 case class AkkaHttpRejection(rejection: String)
@@ -56,10 +61,14 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def method: HttpMethod = HttpMethods.GET
   def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
   def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
-    case AkkaHttpException(msg, statusCode, headers, Some(marshaller)) =>
+    case AkkaHttpException(msg, statusCode, headers, Some(_)) =>
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-        fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
+        fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
       completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+    case ex: Throwable =>
+      val firstClass = ex.getStackTrace.headOption.map(_.getClassName).getOrElse("<unknown class>")
+      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back")
+      complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
@@ -75,54 +84,76 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
       httpMethod(method) {
         val inputBean = CommandBean(Map((AkkaHttpBase.Path, url),
           (AkkaHttpBase.Segments, segments), (AkkaHttpBase.Method, method)))
-        handleRejections(AkkaHttpBase.rejectionHandler) {
+        handleRejections(rejectionHandler) {
           handleExceptions(exceptionHandler[T]) {
             httpParams { params: AkkaHttpParameters =>
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
                   extractRequest { request =>
                     // Query params that can be marshalled to a case class via httpParams
-                    inputBean.addValue(AkkaHttpBase.Headers, request.headers)
-                    inputBean.addValue(AkkaHttpBase.Params, params)
-                    inputBean.addValue(AkkaHttpBase.Auth, auth)
+                    val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+                    inputBean.addValue(RequestHeaders, reqHeaders)
+                    inputBean.addValue(Params, params)
+                    inputBean.addValue(Auth, auth)
+                    inputBean.addValue(TimeOfRequest, new java.lang.Long(System.currentTimeMillis()))
                     // Generic string Map of query params
-                    inputBean.addValue(AkkaHttpBase.QueryParams, paramMap)
+                    inputBean.addValue(QueryParams, paramMap)
                     beanDirective(inputBean, url, method) { outputBean =>
                       onComplete(execute(Some(outputBean)).mapTo[BaseCommandResponse[T]]) {
-                        case Success(AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _)) =>
-                          route
-                        case Success(AkkaHttpCommandResponse(Some(data), _, None, sc)) =>
-                          val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
-                          completeWith(succMarshaller) { completeFunc =>
-                            completeFunc((sc.getOrElse(OK), immutable.Seq[HttpHeader](), data))
+                        case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
+                          val codeResp = akkaResp.copy(statusCode = Some(defaultCodes(outputBean, akkaResp)))
+                          val finalResp = beforeReturn(outputBean, codeResp)
+
+                          respondWithHeaders(finalResp.headers: _*) {
+                            finalResp match {
+                              case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
+                                route
+                              case AkkaHttpCommandResponse(Some(data), ct, None, sc, _) =>
+                                val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                  fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+                                completeWith(succMarshaller) { completeFunc =>
+                                  completeFunc((sc.get, immutable.Seq(
+                                    parseHeader("Content-Type", ct)).flatten, data))
+                                }
+                              case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
+                                completeWith(marshaller) { completeFunc => completeFunc(data) }
+                              case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
+                                log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                                complete(InternalServerError)
+                              case AkkaHttpCommandResponse(None, _, _, sc, _) =>
+                                complete(sc.get.asInstanceOf[StatusCode])
+                            }
                           }
-                        case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
-                          completeWith(marshaller) { completeFunc => completeFunc(data) }
-                        case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
-                          log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
-                          complete(InternalServerError)
-                        case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
-                          complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
-                        case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
-                          case (None, _) => complete(NoContent)
-                          case (Some(data), _) =>
-                            completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
-                        }
+                        case Success(response: BaseCommandResponse[T]) =>
+                          val akkaResp = AkkaHttpCommandResponse[T](response.data, response.responseType)
+                          val codeResp = akkaResp.copy(statusCode = Some(defaultCodes[T](outputBean, akkaResp)))
+                          val finalResp = beforeReturn(outputBean, codeResp)
+
+                          (finalResp.data, finalResp.responseType) match {
+                            case (None, _) => complete(finalResp.statusCode.get)
+                            case (Some(data), _) =>
+                              completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
+                          }
                         case Success(unknownResponse) =>
                           log.error(s"Got unknown response $unknownResponse")
                           complete(InternalServerError)
-                        case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
-                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(AkkaHttpBase.entityMarshaller[T](fmt = formats))
-                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
-                        case Failure(AkkaHttpException(msg, statusCode, headers, Some(marshaller))) =>
-                          val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-                            fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
-                          completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                         case Failure(f) =>
-                          log.error(s"Command failed with $f")
-                          complete(InternalServerError)
+                          val akkaEx = beforeFailedReturn[T](outputBean, f match {
+                            case akkaEx: AkkaHttpException[T] => akkaEx
+                            case ex =>
+                              log.error(s"Command failed with $ex")
+                              AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
+                          }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
+                          akkaEx match {
+                            case AkkaHttpException(msg, statusCode, headers, None) =>
+                              val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+                              completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                            case AkkaHttpException(msg, statusCode, headers, Some(marshaller)) =>
+                              val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
+                                fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
+                              completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
+                          } // If a marshaller provided, use it to transform the entity
                       }
                     }
                   }
@@ -135,6 +166,28 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
     }
   }
 
+  // Override to change default code behavior, defaults to OK with content and NoContent without
+  def defaultCodes[T](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]): StatusCode = {
+    if (akkaResponse.data.isEmpty)
+      akkaResponse.statusCode.getOrElse(NoContent)
+    else
+      akkaResponse.statusCode.getOrElse(OK)
+  }
+
+  // Override to transform response or execute other code right before we return the response
+  // Don't set statusCode to None
+  def beforeReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaResponse: AkkaHttpCommandResponse[T]):
+    AkkaHttpCommandResponse[T] = {
+    akkaResponse
+  }
+
+  // Override to transform exception response or execute other code right before we return the exception response
+  // Don't set statusCode to None
+  def beforeFailedReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaException: AkkaHttpException[T]):
+    AkkaHttpException[T] = {
+    akkaException
+  }
+
   createRoutes()
 }
 
@@ -145,7 +198,12 @@ object AkkaHttpBase {
   val Auth = "auth"
   val Method = "method"
   val QueryParams = "queryParams"
-  val Headers = "headers"
+  val RequestHeaders = "requestHeaders"
+  val TimeOfRequest = "timeOfRequest"
+
+  val AHMetricsPrefix = "wookiee.akka-http"
+
+  val MetricsPrefix = "wookiee.akka-http"
 
   val formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   val serialization = jackson.Serialization
@@ -158,10 +216,28 @@ object AkkaHttpBase {
     case HttpMethods.OPTIONS => options
   }
 
+  // Returns a new CommandBean that has been stripped of all Wookiee Akka Http dependent params,
+  // good for when one is going to be sending the bean to services that don't have a
+  // wookiee-akka-http dependency
+  def beanClean(bean: CommandBean): CommandBean = {
+    val blackList = List(Segments, Params, Auth, Method)
+    val cleanMap = bean.filterKeys(k => !blackList.contains(k)).toMap
+    CommandBean(cleanMap)
+  }
+
+  def parseHeader(name: String, value: String): Option[HttpHeader] = {
+    HttpHeader.parse(name, value) match {
+      case Ok(header, _) => Some(header)
+      case Error(e) =>
+        Harness.externalLogger.warn("Error parsing header: " + e.summary + "\nDetail: " + e.detail)
+        None
+    }
+  }
+
   def rejectionHandler: RejectionHandler = RejectionHandler
-    .default
+    .default.withFallback(corsRejectionHandler)
     .mapRejectionResponse {
-      case res @ HttpResponse(s, _, HttpEntity.Strict(_, data), _) =>
+      case res @ HttpResponse(_, _, HttpEntity.Strict(_, data), _) =>
         val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
         res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
       case res => res

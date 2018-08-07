@@ -1,6 +1,7 @@
 package com.webtrends.harness.component.akkahttp.directives
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.HttpHeader.ParsingResult.Ok
+import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -77,6 +78,25 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
     Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.Created
       entityAs[String] mustEqual "\"meow\""
+    }
+  }
+
+  test("should pass back headers on response object") {
+    var routes = Set.empty[Route]
+
+    new AkkaHttpGet with TestBaseCommand {
+      override def path: String = "test"
+      override def addRoute(r: Route): Unit = routes += r
+      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+        Future.successful(AkkaHttpCommandResponse[T](Some("meow".asInstanceOf[T]),
+          statusCode = Some(StatusCodes.Created), headers =
+            Seq(HttpHeader.parse("fakeHeader", "fakeValue").asInstanceOf[Ok].header)))
+    }
+
+    Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.Created
+      entityAs[String] mustEqual "\"meow\""
+      header("fakeHeader").get mustEqual HttpHeader.parse("fakeHeader", "fakeValue").asInstanceOf[Ok].header
     }
   }
 

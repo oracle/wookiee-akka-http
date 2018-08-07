@@ -4,12 +4,17 @@
  */
 package com.webtrends.harness.component.akkahttp
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorRef
 import akka.http.scaladsl.settings.ServerSettings
 import com.typesafe.config.Config
 import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
 import com.webtrends.harness.utils.ConfigUtil
+
+import scala.concurrent.duration._
+import scala.util.Try
 
 case class AkkaHttpMessage()
 
@@ -27,6 +32,8 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
       internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
       if (settings.external.enabled) {
         externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
+      }
+      if (settings.ws.enabled) {
         wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
       }
       log.info("Wookiee Akka HTTP Actors Ready, Request Line is Open!")
@@ -83,8 +90,10 @@ object AkkaHttpManager {
 }
 
 final case class InternalAkkaHttpSettings(interface: String, port: Int, serverSettings: ServerSettings)
-final case class ExternalAkkaHttpSettings(enabled: Boolean, interface: String, port: Int, serverSettings: ServerSettings)
-final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int, serverSettings: ServerSettings)
+final case class ExternalAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
+                                          serverSettings: ServerSettings)
+final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
+                                           serverSettings: ServerSettings, keepAliveFrequency: FiniteDuration, keepAliveOn: Boolean)
 final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: ExternalAkkaHttpSettings,
                                   ws: WebsocketAkkaHttpSettings)
 
@@ -95,19 +104,28 @@ object AkkaHttpSettings {
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
-    val wsPort = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.websocket-port", config.getInt, 8081)
     val externalPort = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.http-port", config.getInt, 8082)
     val externalInterface = ConfigUtil.getDefaultValue(
       s"${AkkaHttpManager.ComponentName}.external-server.interface", config.getString, "0.0.0.0")
-
+    val wsEnabled = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.enabled", config.getBoolean, false)
+    val wsPort = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.port", config.getInt, 8081)
+    val wsInterface = ConfigUtil.getDefaultValue(
+      s"${AkkaHttpManager.ComponentName}.websocket-server.interface", config.getString, "0.0.0.0")
+    // How often to send a keep alive heartbeat message back
+    val keepAliveFrequency: FiniteDuration = Try(config.getDuration(
+      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS).toInt).getOrElse(30) seconds
+    val keepAliveOn: Boolean = Try(config.getBoolean(
+      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.enabled")).getOrElse(false)
     val serverSettings = ServerSettings(config)
+
 
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings),
       ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings),
-      WebsocketAkkaHttpSettings(externalServerEnabled, externalInterface, wsPort, serverSettings)
+      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, serverSettings, keepAliveFrequency, keepAliveOn)
     )
   }
 }

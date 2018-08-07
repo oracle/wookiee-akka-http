@@ -15,6 +15,7 @@ import akka.stream.scaladsl.Sink
 import com.webtrends.harness.HarnessConstants
 import com.webtrends.harness.app.{HActor, Harness}
 import com.webtrends.harness.component.akkahttp._
+import com.webtrends.harness.component.akkahttp.client.SimpleHttpClient
 import com.webtrends.harness.component.messages.StatusRequest
 import com.webtrends.harness.component.{ComponentHelper, ComponentRequest, StopComponent}
 import com.webtrends.harness.health._
@@ -26,7 +27,7 @@ import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import org.joda.time.{DateTime, DateTimeZone}
 import org.json4s.ext.{EnumNameSerializer, JodaTimeSerializers}
 import org.json4s.{DefaultFormats, JValue, jackson}
-
+import com.webtrends.harness.utils.FutureExtensions._
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
@@ -39,21 +40,19 @@ object InternalAkkaHttpActor {
 case class AkkaHttpUnbind()
 
 class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettings) extends HActor
-  with ComponentHelper {
+  with ComponentHelper
+  with SimpleHttpClient {
   implicit val system = context.system
   implicit val executionContext = context.dispatcher
-  implicit val materializer = ActorMaterializer()
-
-
+  override implicit val materializer = ActorMaterializer()
   implicit val serialization = jackson.Serialization
-
   implicit val formats       = (DefaultFormats ++ JodaTimeSerializers.all) + new EnumNameSerializer(ComponentState)
 
   val serverSource = Http().bind(interface, port, settings = settings)
+  val pingUrl = s"http://$interface:$port/ping"
 
   val healthActor = system.actorSelection(HarnessConstants.HealthFullName)
   val serviceActor = system.actorSelection(HarnessConstants.ServicesFullName)
-  val config = context.system.settings.config
 
   val baseRoutes =
     get {
@@ -148,6 +147,13 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
     case StopComponent => unbind
   }
 
-  // This should probably be overriden to get some custom information about the health of this actor
-  override protected def getHealth: Future[HealthComponent] = super.getHealth
+  override def checkHealth : Future[HealthComponent] = {
+    getPing(pingUrl).mapAll {
+      case Success(_) =>
+        HealthComponent(self.path.toString, ComponentState.NORMAL, s"Healthy: Ping to $pingUrl.")
+      case Failure(_) =>
+        HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Failed to ping server at $pingUrl.")
+    }
+  }
+
 }
