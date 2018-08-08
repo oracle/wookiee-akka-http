@@ -18,6 +18,8 @@ trait AccessLog  {
       segments.foldLeft(path){(p,s) => bean.getValue[String](s.drop(1)).map(value => p.replace(s, value)).getOrElse(p)}
     }
 
+    // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
+    //TODO add a config with an option to turn off logging
     try {
       val host: String = bean.getValue[Map[String,String]](AkkaHttpBase.RequestHeaders).flatMap(rh => rh.get("host")).getOrElse("-")
       // the userId may be either a String or an Int
