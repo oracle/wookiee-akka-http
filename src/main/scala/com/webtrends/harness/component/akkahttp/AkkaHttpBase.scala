@@ -18,6 +18,7 @@ import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
+import com.webtrends.harness.component.akkahttp.logging.AccessLog
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -49,7 +50,7 @@ case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
 case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
   extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
-trait AkkaHttpBase extends PathDirectives with MethodDirectives {
+trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
   this: BaseCommand =>
 
   def createRoutes(): Unit = addRoute(commandOuterDirective)
@@ -103,6 +104,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                         case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
                           val codeResp = akkaResp.copy(statusCode = Some(defaultCodes(outputBean, akkaResp)))
                           val finalResp = beforeReturn(outputBean, codeResp)
+                          logAccess(outputBean, finalResp.statusCode)
 
                           respondWithHeaders(finalResp.headers: _*) {
                             finalResp match {
@@ -128,6 +130,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                           val akkaResp = AkkaHttpCommandResponse[T](response.data, response.responseType)
                           val codeResp = akkaResp.copy(statusCode = Some(defaultCodes[T](outputBean, akkaResp)))
                           val finalResp = beforeReturn(outputBean, codeResp)
+                          logAccess(outputBean, finalResp.statusCode)
 
                           (finalResp.data, finalResp.responseType) match {
                             case (None, _) => complete(finalResp.statusCode.get)
@@ -136,6 +139,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                           }
                         case Success(unknownResponse) =>
                           log.error(s"Got unknown response $unknownResponse")
+                          logAccess(outputBean, Some(InternalServerError))
                           complete(InternalServerError)
                         case Failure(f) =>
                           val akkaEx = beforeFailedReturn[T](outputBean, f match {
@@ -144,6 +148,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                               log.error(s"Command failed with $ex")
                               AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
                           }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
+                          logAccess(outputBean, Some(akkaEx.statusCode))
                           akkaEx match {
                             case AkkaHttpException(msg, statusCode, headers, None) =>
                               val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
