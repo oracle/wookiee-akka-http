@@ -3,6 +3,7 @@ package com.webtrends.harness.component.akkahttp.logging
 import akka.http.scaladsl.model.{DateTime, HttpMethod, StatusCode}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase
+import com.webtrends.harness.component.akkahttp.logging.AccessLog._
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.TimeOfRequest
 import com.webtrends.harness.logging.Logger
 
@@ -10,7 +11,7 @@ trait AccessLog  {
   this: BaseCommand =>
 
   val accessLog = Logger("AccessLog")
-  def logAccess(bean: CommandBean, statusCode: Option[StatusCode] = None) {
+  def logAccess(bean: CommandBean, statusCode: Option[StatusCode] = None) = if (accessLoggingEnabled) {
 
     def reconstructPath(bean: CommandBean): String = {
       val path: String = bean.getValue[String](AkkaHttpBase.Path).getOrElse("-")
@@ -19,7 +20,6 @@ trait AccessLog  {
     }
 
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
-    //TODO add a config with an option to turn off logging
     try {
       val host: String = bean.getValue[Map[String,String]](AkkaHttpBase.RequestHeaders).flatMap(rh => rh.get("host")).getOrElse("-")
       // the userId may be either a String or an Int
@@ -54,5 +54,8 @@ trait AccessLog  {
         log.error("Could not construct access log", e)
     }
   }
+}
 
+object AccessLog {
+  var accessLoggingEnabled = true
 }
