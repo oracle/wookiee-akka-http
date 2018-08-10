@@ -32,7 +32,7 @@ trait AccessLog  {
       val responseTimestamp: Long = System.currentTimeMillis()
       val requestTimestamp: Long = bean.getValue[Long](TimeOfRequest).getOrElse(responseTimestamp)
       val elapsedTime: Long = responseTimestamp - requestTimestamp
-      val now: String = DateTime(requestTimestamp).toIsoDateTimeString()
+      val requestTime: String = DateTime(requestTimestamp).toIsoDateTimeString()
       /*
           LogFormat "%h %l %u %t \"%r\" %>s %b %{ms}T"
 
@@ -47,7 +47,7 @@ trait AccessLog  {
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
-      accessLog.info( s"""$client - $userId [$now] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
+      accessLog.info( s"""$client - $userId [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
     } catch {
       case e: Exception =>
         log.error("Could not construct access log", e)
