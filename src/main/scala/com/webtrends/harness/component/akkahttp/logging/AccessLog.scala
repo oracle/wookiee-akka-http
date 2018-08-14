@@ -11,11 +11,6 @@ trait AccessLog  {
 
   val accessLog = Logger("AccessLog")
 
-  def getClientIP(bean: CommandBean): Option[String] ={
-    bean.getValue[Map[String,String]](AkkaHttpBase.RequestHeaders).flatMap (m =>
-    m.get("X_FORWARDED_FOR").orElse(m.get("REMOTE_ADDR")))
-  }
-
   // Override to obtain the userId
   def getUserId(bean: CommandBean): Option[String] = {
     None
@@ -26,8 +21,8 @@ trait AccessLog  {
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     //TODO add a config with an option to turn off logging
     try {
+      val host: String = bean.getValue[Map[String,String]](AkkaHttpBase.RequestHeaders).flatMap(rh => rh.get("host")).getOrElse("-")
       val userId: String = getUserId(bean).getOrElse("-")
-      val client: String = getClientIP(bean).getOrElse("-")
       val status: String = statusCode.map(sc => sc.intValue.toString).getOrElse("-")
       val responseTimestamp: Long = System.currentTimeMillis()
       val requestTimestamp: Long = bean.getValue[Long](TimeOfRequest).getOrElse(responseTimestamp)
@@ -36,7 +31,7 @@ trait AccessLog  {
       /*
           LogFormat "%h %l %u %t \"%r\" %>s %b %{ms}T"
 
-          %h – The IP address of the client.
+          %h – The IP address of the server.
           %l – The identity of the client determined by identd on the client’s machine. Will return a hyphen (-) if this information is not available.
           %u – The userid of the client if the request was authenticated.
           %t – The time that the request was received, in UTC
@@ -47,7 +42,7 @@ trait AccessLog  {
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
-      accessLog.info( s"""$client - $userId [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
+      accessLog.info( s"""$host - $userId [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
     } catch {
       case e: Exception =>
         log.error("Could not construct access log", e)
