@@ -104,7 +104,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
                         case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
                           val codeResp = akkaResp.copy(statusCode = Some(defaultCodes(outputBean, akkaResp)))
                           val finalResp = beforeReturn(outputBean, codeResp)
-                          logAccess(outputBean, finalResp.statusCode)
+                          logAccess(request, outputBean, finalResp.statusCode)
 
                           respondWithHeaders(finalResp.headers: _*) {
                             finalResp match {
@@ -130,7 +130,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
                           val akkaResp = AkkaHttpCommandResponse[T](response.data, response.responseType)
                           val codeResp = akkaResp.copy(statusCode = Some(defaultCodes[T](outputBean, akkaResp)))
                           val finalResp = beforeReturn(outputBean, codeResp)
-                          logAccess(outputBean, finalResp.statusCode)
+                          logAccess(request, outputBean, finalResp.statusCode)
 
                           (finalResp.data, finalResp.responseType) match {
                             case (None, _) => complete(finalResp.statusCode.get)
@@ -139,7 +139,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
                           }
                         case Success(unknownResponse) =>
                           log.error(s"Got unknown response $unknownResponse")
-                          logAccess(outputBean, Some(InternalServerError))
+                          logAccess(request, outputBean, Some(InternalServerError))
                           complete(InternalServerError)
                         case Failure(f) =>
                           val akkaEx = beforeFailedReturn[T](outputBean, f match {
@@ -148,7 +148,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
                               log.error(s"Command failed with $ex")
                               AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
                           }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
-                          logAccess(outputBean, Some(akkaEx.statusCode))
+                          logAccess(request, outputBean, Some(akkaEx.statusCode))
                           akkaEx match {
                             case AkkaHttpException(msg, statusCode, headers, None) =>
                               val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
