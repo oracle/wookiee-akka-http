@@ -21,7 +21,6 @@ trait AccessLog  {
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     //TODO add a config with an option to turn off logging
     try {
-      val host: String = bean.getValue[Map[String,String]](AkkaHttpBase.RequestHeaders).flatMap(rh => rh.get("host")).getOrElse("-")
       val userId: String = getUserId(bean).getOrElse("-")
       val status: String = statusCode.map(sc => sc.intValue.toString).getOrElse("-")
       val responseTimestamp: Long = System.currentTimeMillis()
@@ -42,11 +41,16 @@ trait AccessLog  {
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
-      accessLog.info( s"""$host - $userId [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
+      accessLog.info( s"""${AccessLog.host} - $userId [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
     } catch {
       case e: Exception =>
         log.error("Could not construct access log", e)
     }
   }
+
+}
+
+object AccessLog {
+  val host: String = java.net.InetAddress.getLocalHost.getHostName
 
 }
