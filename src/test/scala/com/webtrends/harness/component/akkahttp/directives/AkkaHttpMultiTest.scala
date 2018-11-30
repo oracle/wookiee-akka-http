@@ -26,7 +26,7 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(
         Endpoint("getTest", HttpMethods.GET),
-        Endpoint("postTest", HttpMethods.POST, Some(classOf[TestEntity])),
+        Endpoint("postTest", HttpMethods.POST, classOf[TestEntity]),
         Endpoint("two/strings", HttpMethods.GET),
         Endpoint("two/strings/$count", HttpMethods.GET),
         Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET),
@@ -197,8 +197,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     new AkkaHttpMulti with BaseCommand {
       override def allPaths = List(
         Endpoint("same/path", HttpMethods.GET),
-        Endpoint("same/path", HttpMethods.POST, Some(classOf[TestEntity])),
-        Endpoint("same/path", HttpMethods.PUT, Some(classOf[TestEntity])),
+        Endpoint("same/path", HttpMethods.POST, classOf[TestEntity]),
+        Endpoint("same/path", HttpMethods.PUT, classOf[TestEntity]),
         Endpoint("same/path", HttpMethods.DELETE))
 
       override def addRoute(r: Route): Unit =
