@@ -227,6 +227,7 @@ object AkkaHttpBase {
     case HttpMethods.POST => post
     case HttpMethods.DELETE => delete
     case HttpMethods.OPTIONS => options
+    case HttpMethods.PATCH => patch
   }
 
   // Returns a new CommandBean that has been stripped of all Wookiee Akka Http dependent params,
