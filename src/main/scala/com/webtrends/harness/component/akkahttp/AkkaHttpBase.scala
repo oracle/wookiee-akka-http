@@ -12,7 +12,7 @@ import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase.{formats, _}
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
@@ -71,6 +71,14 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
       log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back")
       complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
+  def rejectionHandler: RejectionHandler = RejectionHandler
+    .default.withFallback(corsRejectionHandler)
+    .mapRejectionResponse {
+      case res @ HttpResponse(_, _, HttpEntity.Strict(_, data), _) =>
+        val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
+        res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
+      case res => res
+    }
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
@@ -219,6 +227,7 @@ object AkkaHttpBase {
     case HttpMethods.POST => post
     case HttpMethods.DELETE => delete
     case HttpMethods.OPTIONS => options
+    case HttpMethods.PATCH => patch
   }
 
   // Returns a new CommandBean that has been stripped of all Wookiee Akka Http dependent params,
@@ -238,15 +247,6 @@ object AkkaHttpBase {
         None
     }
   }
-
-  def rejectionHandler: RejectionHandler = RejectionHandler
-    .default.withFallback(corsRejectionHandler)
-    .mapRejectionResponse {
-      case res @ HttpResponse(_, _, HttpEntity.Strict(_, data), _) =>
-        val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
-        res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
-      case res => res
-    }
 
   def marshaller[T <: AnyRef](s: Serialization = serialization, fmt: Formats = formats): ToResponseMarshaller[T] = {
     Json4sSupport.marshaller[T](s, fmt)
