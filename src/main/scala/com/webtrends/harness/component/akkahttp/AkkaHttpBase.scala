@@ -58,7 +58,8 @@ case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _
 trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
   this: BaseCommand =>
 
-  lazy val defaultHeaders: Seq[HttpHeader] = {
+
+  val parseHeaders: Seq[HttpHeader] = {
      val defaultHeaderConfig: Iterable[ConfigObject] = Try {
        Harness.getActorSystem.get.settings.config.getConfig("wookiee-akka-http").getObjectList("default-headers").asScala
    }.getOrElse(List())
@@ -73,6 +74,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
      } yield parsedHeader).toSeq
   }
 
+  def defaultHeaders: Seq[HttpHeader] = parseHeaders
   def createRoutes(): Unit = addRoute(commandOuterDirective)
   def addRoute(r: Route): Unit = ExternalAkkaHttpRouteContainer.addRoute(r)
 
