@@ -23,10 +23,10 @@ import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.typesafe.config.{Config, ConfigFactory, ConfigObject, ConfigValue}
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.collection.immutable
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 case class AkkaHttpCommandResponse[T](data: Option[T],
                                       responseType: String = "application/json",
@@ -58,16 +58,19 @@ case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _
 trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
   this: BaseCommand =>
 
-  lazy val defaultHeaders = {
-    val defaultHeaderConfig: Iterable[ConfigObject] =
-      Harness.getActorSystem.get.settings.config.getConfig("wookiee-akka-http").getObjectList("default-headers").asScala
-    (for {
-      header: ConfigObject <- defaultHeaderConfig
-      entry: Entry[String, ConfigValue] <- header.entrySet().asScala
-      parsedHeader = HttpHeader.parse(entry.getKey, entry.getValue.unwrapped().toString) match {
-        case ParsingResult.Ok(header: HttpHeader, _) => header
-      }
-    } yield parsedHeader).toSeq
+  lazy val defaultHeaders: Seq[HttpHeader] = {
+     val defaultHeaderConfig: Iterable[ConfigObject] = Try {
+       Harness.getActorSystem.get.settings.config.getConfig("wookiee-akka-http").getObjectList("default-headers").asScala
+   }.getOrElse(List())
+     (for {
+       header: ConfigObject <- defaultHeaderConfig
+       entry: Entry[String, ConfigValue] <- header.entrySet().asScala
+       parsedHeader = HttpHeader.parse(entry.getKey, entry.getValue.unwrapped().toString) match {
+         case ParsingResult.Ok(header: HttpHeader, _) => header
+         case ParsingResult.Error(error) =>
+           throw new IllegalArgumentException(s"Error in configured header: ${error.summary}\nDetails:${error.detail}")
+       }
+     } yield parsedHeader).toSeq
   }
 
   def createRoutes(): Unit = addRoute(commandOuterDirective)
