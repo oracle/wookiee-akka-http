@@ -61,7 +61,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
 
   val parseHeaders: Seq[HttpHeader] = {
      val defaultHeaderConfig: Iterable[ConfigObject] = Try {
-       Harness.getActorSystem.get.settings.config.getConfig("wookiee-akka-http").getObjectList("default-headers").asScala
+       Harness.getActorSystem.get.settings.config.getObjectList("wookiee-akka-http.default-headers").asScala
    }.getOrElse(List())
      (for {
        header: ConfigObject <- defaultHeaderConfig
