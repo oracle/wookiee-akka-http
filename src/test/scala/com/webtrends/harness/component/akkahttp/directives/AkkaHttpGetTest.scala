@@ -1,5 +1,6 @@
 package com.webtrends.harness.component.akkahttp.directives
 
+import akka.http.scaladsl.model.HttpHeader.ParsingResult
 import akka.http.scaladsl.model.HttpHeader.ParsingResult.Ok
 import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
 import akka.http.scaladsl.server.Route
@@ -22,8 +23,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.failed(new Exception("error"))
     }
 
@@ -37,8 +40,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.successful(CommandResponse(None))
     }
 
@@ -52,8 +57,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.successful(AkkaHttpCommandResponse(bean
           .get.getValue[Map[String, String]](AkkaHttpBase.QueryParams)
           .map(_.apply("testParam").asInstanceOf[T])))
@@ -70,8 +77,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.successful(AkkaHttpCommandResponse[T](Some("meow".asInstanceOf[T]), statusCode = Some(StatusCodes.Created)))
     }
 
@@ -86,8 +95,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.successful(AkkaHttpCommandResponse[T](Some("meow".asInstanceOf[T]),
           statusCode = Some(StatusCodes.Created), headers =
             Seq(HttpHeader.parse("fakeHeader", "fakeValue").asInstanceOf[Ok].header)))
@@ -105,8 +116,10 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
 
     new AkkaHttpGet with TestBaseCommand {
       override def path: String = "test"
+
       override def addRoute(r: Route): Unit = routes += r
-      override def execute[T : Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
         Future.successful(AkkaHttpCommandResponse[T](None, statusCode = Some(StatusCodes.Continue)))
     }
 
@@ -114,4 +127,26 @@ class AkkaHttpGetTest extends FunSuite with PropertyChecks with MustMatchers wit
       status mustEqual StatusCodes.Continue
     }
   }
+
+  test("should return overrided default headers") {
+    var routes = Set.empty[Route]
+
+    new AkkaHttpGet with TestBaseCommand {
+      override def path: String = "test"
+
+      override def addRoute(r: Route): Unit = routes += r
+
+      override def defaultHeaders = Seq(HttpHeader.parse("Server", "AkkaTest") match {
+        case ParsingResult.Ok(header, _) => header
+      })
+
+      override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] =
+        Future.successful(AkkaHttpCommandResponse[T](None, statusCode = Some(StatusCodes.Continue)))
+    }
+
+    Get("/test") ~> routes.reduceLeft(_ ~ _) ~> check {
+      headers.exists(h => h.name == "Server" && h.value == "AkkaTest") mustEqual true
+    }
+  }
+
 }
