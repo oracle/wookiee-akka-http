@@ -10,14 +10,14 @@
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
         <build.number>999</build.number>
-        <build.version>1.0.0</build.version>
+        <build.version>1.0.1</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.12</scala.version>
-        <akka.version>2.5.4</akka.version>
-        <akka.http.version>10.1.1</akka.http.version>
+        <akka.version>2.5.21</akka.version>
+        <akka.http.version>10.1.7</akka.http.version>
         <wookiee.core.version>1.3.20</wookiee.core.version>
     </properties>
 
@@ -118,6 +118,12 @@
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-stream-testkit_2.11</artifactId>
+            <version>${akka.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-remote_2.11</artifactId>
             <version>${akka.version}</version>
             <scope>test</scope>
         </dependency>
