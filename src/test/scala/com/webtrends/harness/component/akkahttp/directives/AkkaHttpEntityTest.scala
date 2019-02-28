@@ -138,7 +138,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
       import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 
       Post("/test", content = Some(entity)) ~> routes.reduceLeft(_ ~ _) ~> check {
-        status mustEqual
+        status mustEqual StatusCodes.RequestEntityTooLarge
       }
     }
   }
