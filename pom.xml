@@ -10,7 +10,7 @@
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
         <build.number>999</build.number>
-        <build.version>1.0.1</build.version>
+        <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
