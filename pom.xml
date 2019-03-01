@@ -122,12 +122,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-remote_2.11</artifactId>
-            <version>${akka.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.scalacheck</groupId>
             <artifactId>scalacheck_${scala.artifact.version}</artifactId>
             <version>1.13.4</version>
