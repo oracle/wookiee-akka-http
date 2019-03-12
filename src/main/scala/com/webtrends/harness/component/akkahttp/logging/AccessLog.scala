@@ -51,7 +51,7 @@ trait AccessLog  {
       accessLog.info( s"""$host - $user [$now] "$method $path -" $status - $elapsedTime""")
     } catch {
       case e: Exception =>
-        log.error("Could not construct access log", e)
+        accessLog.error("Could not construct access log", e)
     }
   }
 }

@@ -19,6 +19,7 @@ import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
+import com.webtrends.harness.logging.LoggingAdapter
 
 import scala.collection.immutable
 import scala.util.{Failure, Success}
@@ -50,7 +51,7 @@ case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
 case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
   extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
-trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog{
+trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog with LoggingAdapter{
   this: BaseCommand =>
 
   def createRoutes(): Unit = addRoute(commandOuterDirective)
