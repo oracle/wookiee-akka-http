@@ -25,3 +25,15 @@ Add [latest version](https://github.com/oracle/wookiee-akka-http/releases/latest
     <version>${wookiee.version}</version>
 </dependency>
 ~~~~
+
+### Disabling Access Logging
+By default, we will log information about each http call to Wookiee Akka Http. To disable this,
+add to your wookiee-akka-http config section the following:
+~~~~
+wookiee-akka-http {
+  ...
+  access-logging {
+    enabled = false
+  }
+}
+~~~~

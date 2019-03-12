@@ -59,8 +59,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           val params = getURIParams[Holder6](bean)
           Future.successful(CommandResponse(Some(bean("ver") + params._2 + params._3 + params._4 + bean("four") + params._6)))
       }
-
-      override protected val log = Logger.getLogger(getClass)
     }
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -214,8 +212,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         case ("same/path", HttpMethods.GET) =>
           Future.successful(CommandResponse(Some("GET")))
       }
-
-      override protected val log = Logger.getLogger(getClass)
     }
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -274,8 +270,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
             holder._1)))
       }
-
-      override protected val log = Logger.getLogger(getClass)
     }
 
     if (corsExt) new TestMulti with AkkaHttpCORS

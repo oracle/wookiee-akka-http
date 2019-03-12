@@ -10,6 +10,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.settings.ServerSettings
 import com.typesafe.config.Config
 import com.webtrends.harness.component.Component
+import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
 import com.webtrends.harness.utils.ConfigUtil
 
@@ -20,6 +21,9 @@ case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   val settings = AkkaHttpSettings(config)
+  AccessLog.accessLoggingEnabled = ConfigUtil.getDefaultValue(
+    s"${AkkaHttpManager.ComponentName}.access-logging.enabled", config.getBoolean, true)
+  if (AccessLog.accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
   val starMonitor = new Object()
 
   var internalAkkaHttpRef: Option[ActorRef] = None
