@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpResponse}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
@@ -15,8 +16,8 @@ import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
 import scala.collection.immutable.ListMap
-import scala.collection.{immutable, mutable}
 import scala.collection.mutable.ListBuffer
+import scala.collection.{immutable, mutable}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -220,20 +221,53 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     }
     // Add query params onto the bean directly
     getQueryParams(bean).foreach(keyVal => bean.addValue(keyVal._1, keyVal._2))
-    // Do the unmarshalling of the request
-    val entityClass = allPaths.find(e => url == e.path && method == e.method).flatMap(_.unmarshaller)
-    if (entityClass.isDefined) {
-      val ev: Manifest[AnyRef] = Manifest.classType(entityClass.get)
-      val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
-      (withSizeLimit(maxSizeBytes) & entity(as[Option[AnyRef]](unmarsh))).flatMap { entity =>
-        entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
+
+    // unmarshall if needed
+    allPaths.find(e => url == e.path && method == e.method) match {
+      case Some(CustomUnmarshallerEndpoint(p, m, um)) =>
+        (withSizeLimit(maxSizeBytes) & entity(um)).flatMap { entity =>
+          bean.addValue(CommandBean.KeyEntity, entity)
+          super.beanDirective(bean, url, method)
+        }
+      case Some(DefaultJsonEndpoint(p, m, ec)) =>
+        val ev: Manifest[AnyRef] = Manifest.classType(ec)
+        val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
+        (withSizeLimit(maxSizeBytes) & entity(as[Option[AnyRef]](unmarsh))).flatMap { entity =>
+          entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
+          super.beanDirective(bean, url, method)
+        }
+      case _ =>
         super.beanDirective(bean, url, method)
-      }
-    } else super.beanDirective(bean, url, method)
+    }
+
   }
 }
 
-// Class that holds Endpoint info to go in allPaths, url is the endpoint's path and any query params
-// can be input with $param, e.g. /endpoint/$param/accounts, method is an HTTP method, e.g. GET,
-// unmarshaller is a case class that can hold the extract of the json body input
-case class Endpoint(path: String, method: HttpMethod, unmarshaller: Option[Class[_]] = None)
+sealed trait Endpoint {
+  val path: String
+  val method: HttpMethod
+}
+
+object Endpoint {
+  // Use for endpoints with no request entity
+  def apply(path: String, method: HttpMethod) = BareEndpoint(path, method)
+
+  // Generic end pointing supporting application/json which will deserialize to the specified class using the class's formats
+  def apply(path: String, method: HttpMethod, entityClass: Class[_]) = DefaultJsonEndpoint(path, method, entityClass)
+
+  // End point with a provided custom marshaller
+  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) = CustomUnmarshallerEndpoint(path, method, unmarshaller)
+
+  // Added for backward compatibility.
+  @deprecated
+  def apply(path: String, method: HttpMethod, entityClass: Option[Class[_]]) = {
+    if (entityClass.isDefined)
+      DefaultJsonEndpoint(path, method, entityClass.get)
+    else
+      BareEndpoint(path, method)
+  }
+}
+
+case class BareEndpoint(path: String, method: HttpMethod) extends Endpoint
+case class DefaultJsonEndpoint(path: String, method: HttpMethod, entityClass: Class[_]) extends Endpoint
+case class CustomUnmarshallerEndpoint[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) extends Endpoint
