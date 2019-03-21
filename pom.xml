@@ -11,7 +11,7 @@
         <profile>
             <id>dev</id>
             <activation>
-                <activeByDefault>false</activeByDefault>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <properties>
                 <scala.artifact.version>2.11</scala.artifact.version>
@@ -33,10 +33,14 @@
     </properties>
 
     <groupId>com.webtrends</groupId>
-    <artifactId>wookiee-akka-http_${scala.artifact.version}</artifactId>
+    <artifactId>wookiee-akka-http</artifactId>
     <version>1.5-SNAPSHOT</version>
-    <packaging>jar</packaging>
-    <name>wookiee-akka-http</name>
+    <packaging>pom</packaging>
+    <name>Parent</name>
+
+    <modules>
+        <module>scala_${scala.artifact.version}.xml</module>
+    </modules>
 
     <repositories>
         <repository>
