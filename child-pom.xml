@@ -17,8 +17,8 @@
         <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
     </properties>
 
-    <artifactId>wookiee-akka-http_2.12</artifactId>
+    <artifactId>wookiee-akka-http_${scala.artifact.version}</artifactId>
     <version>1.5-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>wookiee-akka-http_2.12</name>
+    <name>wookiee-akka-http_${scala.artifact.version}</name>
 </project>

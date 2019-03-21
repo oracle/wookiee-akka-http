@@ -17,6 +17,15 @@
                 <scala.artifact.version>2.11</scala.artifact.version>
             </properties>
         </profile>
+        <profile>
+            <id>dev12</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <scala.artifact.version>2.12</scala.artifact.version>
+            </properties>
+        </profile>
     </profiles>
 
     <properties>
@@ -29,7 +38,7 @@
         <scala.version>${scala.artifact.version}.12</scala.version>
         <akka.version>2.5.4</akka.version>
         <akka.http.version>10.1.1</akka.http.version>
-        <wookiee.core.version>1.3.27</wookiee.core.version>
+        <wookiee.core.version>1.3.29</wookiee.core.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
@@ -39,7 +48,7 @@
     <name>Parent</name>
 
     <modules>
-        <module>scala_${scala.artifact.version}.xml</module>
+        <module>child-pom.xml</module>
     </modules>
 
     <repositories>
