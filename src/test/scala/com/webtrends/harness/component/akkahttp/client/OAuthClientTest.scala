@@ -91,7 +91,36 @@ class OAuthClientTest extends AsyncFlatSpec
     result.map { r =>
       assert(r.isLeft)
       assert(r.left.exists(_.isInstanceOf[UnauthorizedException]))
-      assert(r.left.get.asInstanceOf[UnauthorizedException].description == "description")
+      assert(r.left.get.asInstanceOf[UnauthorizedException].description.get == "description")
+      assert(r.left.get.asInstanceOf[UnauthorizedException].code == InvalidClient)
+    }
+  }
+
+  it should "not break when error_description is absent" in {
+    import strategy._
+
+    val response = HttpResponse(
+      status = StatusCodes.Unauthorized,
+      headers = Nil,
+      entity = HttpEntity(
+        ContentTypes.`application/json`,
+        s"""
+           |{
+           |  "error": "invalid_client"
+           |}
+         """.stripMargin
+      )
+    )
+
+    val mockConnection = Flow[HttpRequest].map(_ => response)
+    val config         = Config("xxx", "yyy", URI.create("https://example.com"))
+    val client         = OAuthClient(config, mockConnection)
+    val result         = client.getAccessToken(GrantType.AuthorizationCode, Map("code" -> "zzz", "redirect_uri" -> "https://example.com"))
+
+    result.map { r =>
+      assert(r.isLeft)
+      assert(r.left.exists(_.isInstanceOf[UnauthorizedException]))
+      assert(r.left.get.asInstanceOf[UnauthorizedException].description.isEmpty)
       assert(r.left.get.asInstanceOf[UnauthorizedException].code == InvalidClient)
     }
   }

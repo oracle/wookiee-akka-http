@@ -30,11 +30,11 @@ object Error {
     }
   }
 
-  class UnauthorizedException(val code: Code, val description: String, val response: HttpResponse)
-      extends RuntimeException(s"$code: $description")
+  class UnauthorizedException(val code: Code, val description: Option[String], val response: HttpResponse)
+      extends RuntimeException(s"$code${description.map(d => ": " + d).getOrElse("")}")
 
   object UnauthorizedException {
-    case class UnauthorizedResponse(error: String, error_description: String)
+    case class UnauthorizedResponse(error: String, error_description: Option[String])
 
     implicit val formats: Formats = DefaultFormats
     implicit def um: FromEntityUnmarshaller[UnauthorizedResponse] =
@@ -47,7 +47,7 @@ object Error {
         new UnauthorizedException(Code.fromString(r.error), r.error_description, response)
       }
         .recover { case err: Throwable =>
-          new UnauthorizedException(Code.fromString("unknown"), err.getMessage, response)
+          new UnauthorizedException(Code.fromString("unknown"), Some(err.getMessage), response)
         }
     }
   }
