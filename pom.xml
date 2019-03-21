@@ -7,6 +7,18 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <scala.artifact.version>2.11</scala.artifact.version>
+            </properties>
+        </profile>
+    </profiles>
+
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
         <build.number>999</build.number>
@@ -14,7 +26,6 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.12</scala.version>
         <akka.version>2.5.4</akka.version>
         <akka.http.version>10.1.1</akka.http.version>
