@@ -29,7 +29,7 @@
         <scala.version>${scala.artifact.version}.12</scala.version>
         <akka.version>2.5.4</akka.version>
         <akka.http.version>10.1.1</akka.http.version>
-        <wookiee.core.version>1.3.25</wookiee.core.version>
+        <wookiee.core.version>1.3.27</wookiee.core.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
@@ -74,12 +74,12 @@
     <dependencies>
         <dependency>
             <groupId>com.webtrends</groupId>
-            <artifactId>wookiee-core</artifactId>
+            <artifactId>wookiee-core_${scala.artifact.version}</artifactId>
             <version>${wookiee.core.version}</version>
         </dependency>
         <dependency>
             <groupId>com.webtrends</groupId>
-            <artifactId>wookiee-test</artifactId>
+            <artifactId>wookiee-test_${scala.artifact.version}</artifactId>
             <version>${wookiee.core.version}</version>
             <scope>test</scope>
         </dependency>
