@@ -1,10 +1,12 @@
-package com.webtrends.harness.component.akkahttp.client.oauth
+package com.webtrends.harness.component.akkahttp.client.oauth.token
 
-import akka.http.scaladsl.model.HttpResponse
-import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.model.{ContentTypes, HttpResponse}
+import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshal, Unmarshaller}
 import akka.stream.Materializer
+import org.json4s.jackson.JsonMethods.parse
+import org.json4s.{DefaultFormats, Formats}
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
 object Error {
   sealed abstract class Code(val value: String)
@@ -32,12 +34,21 @@ object Error {
       extends RuntimeException(s"$code: $description")
 
   object UnauthorizedException {
-    case class UnauthorizedResponse(error: String, errorDescription: String)
+    case class UnauthorizedResponse(error: String, error_description: String)
+
+    implicit val formats: Formats = DefaultFormats
+    implicit def um: FromEntityUnmarshaller[UnauthorizedResponse] =
+      Unmarshaller.stringUnmarshaller.forContentTypes(ContentTypes.`application/json`).map { str =>
+        parse(str).extract[UnauthorizedResponse]
+      }
 
     def fromHttpResponse(response: HttpResponse)(implicit ec: ExecutionContext, mat: Materializer): Future[UnauthorizedException] = {
       Unmarshal(response).to[UnauthorizedResponse].map { r =>
-        new UnauthorizedException(Code.fromString(r.error), r.errorDescription, response)
+        new UnauthorizedException(Code.fromString(r.error), r.error_description, response)
       }
+        .recover { case err: Throwable =>
+          new UnauthorizedException(Code.fromString("unknown"), err.getMessage, response)
+        }
     }
   }
 }

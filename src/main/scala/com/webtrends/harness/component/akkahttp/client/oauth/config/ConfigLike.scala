@@ -1,4 +1,4 @@
-package com.webtrends.harness.component.akkahttp.client.oauth
+package com.webtrends.harness.component.akkahttp.client.oauth.config
 
 import java.net.URI
 

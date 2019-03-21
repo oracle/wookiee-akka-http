@@ -2,9 +2,10 @@ package com.webtrends.harness.component.akkahttp.client.oauth.strategy
 
 import akka.NotUsed
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{ FormData, HttpCharsets, HttpRequest, Uri }
+import akka.http.scaladsl.model.{FormData, HttpCharsets, HttpRequest, Uri}
 import akka.stream.scaladsl.Source
-import com.webtrends.harness.component.akkahttp.client.oauth.{ ConfigLike, GrantType }
+import com.webtrends.harness.component.akkahttp.client.oauth.config.ConfigLike
+import com.webtrends.harness.component.akkahttp.client.oauth.token.GrantType
 
 class RefreshTokenStrategy extends Strategy(GrantType.RefreshToken) {
   override def getAuthorizeUrl(config: ConfigLike, params: Map[String, String] = Map.empty): Option[Uri] = None

@@ -5,7 +5,8 @@ import akka.http.scaladsl.model
 import akka.http.scaladsl.model.headers.{Authorization, BasicHttpCredentials, RawHeader}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.Source
-import com.webtrends.harness.component.akkahttp.client.oauth.{ConfigLike, GrantType}
+import com.webtrends.harness.component.akkahttp.client.oauth.config.ConfigLike
+import com.webtrends.harness.component.akkahttp.client.oauth.token.GrantType
 
 class PasswordCredentialsStrategy extends Strategy(GrantType.PasswordCredentials) {
   override def getAuthorizeUrl(config: ConfigLike, params: Map[String, String] = Map.empty): Option[Uri] = None

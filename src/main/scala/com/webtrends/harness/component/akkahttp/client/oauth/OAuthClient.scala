@@ -3,16 +3,17 @@ package com.webtrends.harness.component.akkahttp.client.oauth
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.model.{ HttpRequest, HttpResponse, Uri }
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Flow, Sink }
-import com.webtrends.harness.component.akkahttp.client.oauth.Error.UnauthorizedException
+import akka.stream.scaladsl.{Flow, Sink}
+import com.webtrends.harness.component.akkahttp.client.oauth.token.Error.UnauthorizedException
+import com.webtrends.harness.component.akkahttp.client.oauth.config.ConfigLike
 import com.webtrends.harness.component.akkahttp.client.oauth.strategy.Strategy
+import com.webtrends.harness.component.akkahttp.client.oauth.token.{AccessToken, GrantType}
 
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 
-class Client(config: ConfigLike, connection: Option[Flow[HttpRequest, HttpResponse, _]] = None)(implicit system: ActorSystem)
-    extends ClientLike {
+class OAuthClient(config: ConfigLike, connection: Option[Flow[HttpRequest, HttpResponse, _]] = None)(implicit system: ActorSystem) {
   def getAuthorizeUrl[A <: GrantType](grant: A, params: Map[String, String] = Map.empty)(implicit s: Strategy[A]): Option[Uri] =
     s.getAuthorizeUrl(config, params)
 
@@ -36,7 +37,7 @@ class Client(config: ConfigLike, connection: Option[Flow[HttpRequest, HttpRespon
 
   def getConnectionWithAccessToken(accessToken: AccessToken): Flow[HttpRequest, HttpResponse, _] =
     Flow[HttpRequest]
-      .map(_.addCredentials(OAuth2BearerToken(accessToken.accessToken)))
+      .map(_.addCredentials(OAuth2BearerToken(accessToken.access_token)))
       .via(connection.getOrElse(defaultConnection))
 
   private def defaultConnection: Flow[HttpRequest, HttpResponse, _] =
@@ -51,10 +52,10 @@ class Client(config: ConfigLike, connection: Option[Flow[HttpRequest, HttpRespon
   }
 }
 
-object Client {
-  def apply(config: ConfigLike)(implicit system: ActorSystem): Client =
-    new Client(config)
+object OAuthClient {
+  def apply(config: ConfigLike)(implicit system: ActorSystem): OAuthClient =
+    new OAuthClient(config)
 
-  def apply(config: ConfigLike, connection: Flow[HttpRequest, HttpResponse, _])(implicit system: ActorSystem): Client =
-    new Client(config, Some(connection))
+  def apply(config: ConfigLike, connection: Flow[HttpRequest, HttpResponse, _])(implicit system: ActorSystem): OAuthClient =
+    new OAuthClient(config, Some(connection))
 }

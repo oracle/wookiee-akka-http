@@ -4,7 +4,8 @@ import akka.NotUsed
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, Uri}
 import akka.stream.scaladsl.Source
-import com.webtrends.harness.component.akkahttp.client.oauth.{ConfigLike, GrantType}
+import com.webtrends.harness.component.akkahttp.client.oauth.config.ConfigLike
+import com.webtrends.harness.component.akkahttp.client.oauth.token.GrantType
 
 abstract class Strategy[A <: GrantType](val grant: A) {
   def getAuthorizeUrl(config: ConfigLike, params: Map[String, String]): Option[Uri]

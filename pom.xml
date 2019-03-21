@@ -22,7 +22,7 @@
     </properties>
 
     <groupId>com.webtrends</groupId>
-    <artifactId>wookiee-akka-http</artifactId>
+    <artifactId>wookiee-akka-http_${scala.artifact.version}</artifactId>
     <version>1.5-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>wookiee-akka-http</name>
@@ -117,7 +117,7 @@
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-stream-testkit_2.11</artifactId>
+            <artifactId>akka-stream-testkit_${scala.artifact.version}</artifactId>
             <version>${akka.version}</version>
             <scope>test</scope>
         </dependency>

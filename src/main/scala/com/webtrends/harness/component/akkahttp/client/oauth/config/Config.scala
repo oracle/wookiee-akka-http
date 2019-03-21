@@ -1,8 +1,8 @@
-package com.webtrends.harness.component.akkahttp.client.oauth
+package com.webtrends.harness.component.akkahttp.client.oauth.config
 
 import java.net.URI
 
-import akka.http.scaladsl.model.{ HttpMethod, HttpMethods }
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 
 case class Config(
     clientId: String,
