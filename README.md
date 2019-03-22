@@ -21,7 +21,7 @@ Add [latest version](https://github.com/oracle/wookiee-akka-http/releases/latest
 ~~~~
 <dependency>
     <groupId>com.webtrends</groupId>
-    <artifactId>wookiee-akka-http</artifactId>
+    <artifactId>wookiee-akka-http_2.11</artifactId>
     <version>${wookiee.version}</version>
 </dependency>
 ~~~~
