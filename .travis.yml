@@ -47,7 +47,7 @@ script:
     fi
   - |
     if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "$TRAVIS_TAG" = "" ]; then
-      mvn test scoverage:report coveralls:report -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION
+      mvn test scoverage:report -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION
     fi
   - |
     if [ "${TRAVIS_PULL_REQUEST}" != "false" ]; then
