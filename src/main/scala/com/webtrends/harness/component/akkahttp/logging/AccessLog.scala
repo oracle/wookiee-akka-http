@@ -2,9 +2,8 @@ package com.webtrends.harness.component.akkahttp.logging
 
 import akka.http.scaladsl.model.{DateTime, HttpRequest, StatusCode}
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase
-import com.webtrends.harness.component.akkahttp.logging.AccessLog._
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.TimeOfRequest
+import com.webtrends.harness.component.akkahttp.logging.AccessLog._
 import com.webtrends.harness.logging.Logger
 
 trait AccessLog  {

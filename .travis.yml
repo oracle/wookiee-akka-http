@@ -1,36 +1,55 @@
 language: scala
-scala:
-- 2.11.4
+
 jdk:
-- oraclejdk8
+  - oraclejdk8
+
 addons:
   apt:
     packages:
-    - oracle-java8-installer
+      - oracle-java8-installer
+
 sudo: false
-branches:
-  only:
-  - master
-  - /^[0-9]+\.[0-9]+\.[0-9]+$/
-cache:
-  directories:
-  - $HOME/.m2
-before_install:
-- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Not a PR Build" && [ "IS_${TRAVIS_TAG}"
-  != "IS_" ] && echo "Is tag build $TRAVIS_TAG" || echo "."'
-- '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG ||
-  true'
-install:
-- mvn clean install -Dmaven.javadoc.skip=true -B -V
-before_script:
-- test "$TRAVIS_PULL_REQUEST" == "false" && git clone -b travis `git config --get
-  remote.origin.url` target/travis || true
-script:
-- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy --settings
-  target/travis/settings.xml || echo "Testing..." && mvn test -B'
+
 env:
   global:
-  - MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
-  - secure: U0cV/x0fOL1userPTApIodYefLgX2edpOdOQR7y9aN/j7zW2tI4oF+xv4uXtWhY08O0BpYsUBCyLMiCusKCUxs7tJNacGmCBD8LZ39Och0V3l5H0LXxasgv93H3RirkaYx5T1RVI9QOQl2+uroVEEVmyABPPQg9DBU8xsU+DPCTAxq++i3XK4exNJ+WEnga66No0K+Rdg4FAClpOE9DnITq5PYBXm3ohLAB5uGstLGe8yl12IGIhtCdcfcI+U4pS0pGbfsNdgTkrtOxe0uNh2PVBndKD0h54sxU8Q5HZMrSdpogoLPRqpDX6Q5D5Ho1ZGDLBiUb6le8mEvNIgcd5vO7CA7jYzjDwZSd8dI1FmQYAPo8WlDr32CePRGoo2ABW0x7byShh+4XrCEx3BU4svnQ4RjCauBmS1kPpFBsJ7bYj3sG8SQboY7yhz9sU4rgeRjtCdlKtWsyAM7uhXxT2zwJcDOH/jaFhlWHvW6B6xNANGBQC3rKHDg61qV5+YjfIX6+irMGd7GdMzMk/hc1QOY58a+fdD1zI1opvQN5zhbLsUiyx0Aq3zFcoqCw//KBCJGv9XmBu2RAi+7MREr+TqLiqqapi/K8g1fB0x+O5+kyz7w4jMLCDyOgJh6Eomi09+zfQhWIfeyr8ZST3cVr3ANXz+HCgEUvilSSlMw7JgSk=
-  - secure: d9/VWRHd+Qx3TxOuaOxK+s4uxwlAnO0nCCOVWtMlGyRMW45UCwWbkITc2wEs6Bjy/24ExCX/zU3CmW8hCy9pGmhvE4zZUA0pmN46fubJb3u1qLmFepZz2VDrlQu2AcPC5Ssb1EfdPdZHeq/0iFeSdttniVIWjHMx1Ii4rKO7UOZzxaRLDj3iIn/lv2Pc4KGEHQokKHTP2P56O6Ox3G5YH5SUkpKIpfI7Ok4h+kG6EBMrnEs+tDF7eSWoYn3YYyWK8jB5ePbIBaCs2EttaB27yXuHlI7gN3GcD9p8eQVZrfr7skXiVvbzw5r1Qy4qRlgm2oycYb7Tqhzus01B1mp/eXJQ76OV7CK2d9jTV1TWmPFmtAs+dg7c/h5oNMUl9ZXzdt6yclaJBhCyjZvLg/lJ1o2uTkwSOmdEIggHIDxapaw6LYUF+bXtnhkRDd/3d0WqFn09ZEoQJk/Mh47m5RGZgFROaumuMx1MQ4/Y+qma5pOb3wKIyyMBJIhocQYXQgMMLwomzKoPyh19c1RDYfA2tqunixrlRUBOczOPbzg5/uxK8QF4sarEi5COF93PmCzSoI3i3hILReBnUXdh/Z1yoOJSbjWaotCWJ63DFeHCu5w1mOH7fHse7Q+ApmtSnkc608LVBKIT3XDuhgUyRMqzqMRDYJCO2dG4yk6rmVEz6sM=
-  - secure: XHP1jXOEqC9ZrpHMraKIYURxOmfdX6Js05f4nJtsiCSHrxSWoLGn9qA2Mv9uv2zrXj/9HZg/obNmQKZXIuDMbCuxQ/ghBaDyjMv6TPXIkG/RJUo8aWY3aT+wacFIipdZZRjAi1A2ppIhhaeG7JH0IKnsQs0dwaaB0ONR/a+lTdgJRL4OBW+ZPcj0xaCumdKZD8kFTw6TFfIgaI6HkYltmvaqyk49ZYgJ1vCOpcQPM8VXIG/rPgNSpCb6diNTmSWLLUOtsaj+fgf6ydS+UzzQJvr1rKni2DJFAcYvSRbCNgIakupGii/mzsqOawPkWSLXhxfY7hz/IW9VKcv9JVQXKxr83VfQrwyy3vxDX6lpUiBe0CdjH6oov5YLe5RQbQLQhPLE3LFHsPuCHdXllAn+G1m15/KMbqHsbFQgorWznzoXMstHi4CTKGbayFRmH+H4mKdnZQnMYC07VGAehOsoQph1eBEDnQHtazB80uOaFTY4cW8oYqoWWfVyOGDFa/wGg/iPkbm/58Ovt0xBv9ngnQKYJGMimPOKmUXLLXSxlFnJdpkLPGLqpEIkVVWBm6gYfPJ9+aUBiMmHsIdu4KZNPe4ud0MbXtcwmMX48CkkaaLjb/zGcmy8sYnTqjr+LmHA+ZrirtFToQ+b+9kesuWKQa/IReW7LB4VNWPjERCW6tA=
+    - MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+    - secure: U0cV/x0fOL1userPTApIodYefLgX2edpOdOQR7y9aN/j7zW2tI4oF+xv4uXtWhY08O0BpYsUBCyLMiCusKCUxs7tJNacGmCBD8LZ39Och0V3l5H0LXxasgv93H3RirkaYx5T1RVI9QOQl2+uroVEEVmyABPPQg9DBU8xsU+DPCTAxq++i3XK4exNJ+WEnga66No0K+Rdg4FAClpOE9DnITq5PYBXm3ohLAB5uGstLGe8yl12IGIhtCdcfcI+U4pS0pGbfsNdgTkrtOxe0uNh2PVBndKD0h54sxU8Q5HZMrSdpogoLPRqpDX6Q5D5Ho1ZGDLBiUb6le8mEvNIgcd5vO7CA7jYzjDwZSd8dI1FmQYAPo8WlDr32CePRGoo2ABW0x7byShh+4XrCEx3BU4svnQ4RjCauBmS1kPpFBsJ7bYj3sG8SQboY7yhz9sU4rgeRjtCdlKtWsyAM7uhXxT2zwJcDOH/jaFhlWHvW6B6xNANGBQC3rKHDg61qV5+YjfIX6+irMGd7GdMzMk/hc1QOY58a+fdD1zI1opvQN5zhbLsUiyx0Aq3zFcoqCw//KBCJGv9XmBu2RAi+7MREr+TqLiqqapi/K8g1fB0x+O5+kyz7w4jMLCDyOgJh6Eomi09+zfQhWIfeyr8ZST3cVr3ANXz+HCgEUvilSSlMw7JgSk=
+    - secure: d9/VWRHd+Qx3TxOuaOxK+s4uxwlAnO0nCCOVWtMlGyRMW45UCwWbkITc2wEs6Bjy/24ExCX/zU3CmW8hCy9pGmhvE4zZUA0pmN46fubJb3u1qLmFepZz2VDrlQu2AcPC5Ssb1EfdPdZHeq/0iFeSdttniVIWjHMx1Ii4rKO7UOZzxaRLDj3iIn/lv2Pc4KGEHQokKHTP2P56O6Ox3G5YH5SUkpKIpfI7Ok4h+kG6EBMrnEs+tDF7eSWoYn3YYyWK8jB5ePbIBaCs2EttaB27yXuHlI7gN3GcD9p8eQVZrfr7skXiVvbzw5r1Qy4qRlgm2oycYb7Tqhzus01B1mp/eXJQ76OV7CK2d9jTV1TWmPFmtAs+dg7c/h5oNMUl9ZXzdt6yclaJBhCyjZvLg/lJ1o2uTkwSOmdEIggHIDxapaw6LYUF+bXtnhkRDd/3d0WqFn09ZEoQJk/Mh47m5RGZgFROaumuMx1MQ4/Y+qma5pOb3wKIyyMBJIhocQYXQgMMLwomzKoPyh19c1RDYfA2tqunixrlRUBOczOPbzg5/uxK8QF4sarEi5COF93PmCzSoI3i3hILReBnUXdh/Z1yoOJSbjWaotCWJ63DFeHCu5w1mOH7fHse7Q+ApmtSnkc608LVBKIT3XDuhgUyRMqzqMRDYJCO2dG4yk6rmVEz6sM=
+    - secure: XHP1jXOEqC9ZrpHMraKIYURxOmfdX6Js05f4nJtsiCSHrxSWoLGn9qA2Mv9uv2zrXj/9HZg/obNmQKZXIuDMbCuxQ/ghBaDyjMv6TPXIkG/RJUo8aWY3aT+wacFIipdZZRjAi1A2ppIhhaeG7JH0IKnsQs0dwaaB0ONR/a+lTdgJRL4OBW+ZPcj0xaCumdKZD8kFTw6TFfIgaI6HkYltmvaqyk49ZYgJ1vCOpcQPM8VXIG/rPgNSpCb6diNTmSWLLUOtsaj+fgf6ydS+UzzQJvr1rKni2DJFAcYvSRbCNgIakupGii/mzsqOawPkWSLXhxfY7hz/IW9VKcv9JVQXKxr83VfQrwyy3vxDX6lpUiBe0CdjH6oov5YLe5RQbQLQhPLE3LFHsPuCHdXllAn+G1m15/KMbqHsbFQgorWznzoXMstHi4CTKGbayFRmH+H4mKdnZQnMYC07VGAehOsoQph1eBEDnQHtazB80uOaFTY4cW8oYqoWWfVyOGDFa/wGg/iPkbm/58Ovt0xBv9ngnQKYJGMimPOKmUXLLXSxlFnJdpkLPGLqpEIkVVWBm6gYfPJ9+aUBiMmHsIdu4KZNPe4ud0MbXtcwmMX48CkkaaLjb/zGcmy8sYnTqjr+LmHA+ZrirtFToQ+b+9kesuWKQa/IReW7LB4VNWPjERCW6tA=
+
+matrix:
+  include:
+    - scala: '2.11.12'
+      env: SCALAVER=2.11
+    - scala: '2.12.6'
+      env: SCALAVER=2.12
+
+branches:
+  only:
+    - master
+    - /^[0-9]+\.[0-9]+\.[0-9]+$/
+
+cache:
+  directories:
+    - $HOME/.m2
+
+before_install:
+  - git clone -b travis `git config --get remote.origin.url` target/travis
+  - echo "Scala Version =$TRAVIS_SCALA_VERSION, Artifact Version =$SCALAVER"
+
+install: true
+
+script:
+  - |
+    if [ "$TRAVIS_TAG" != "" ]; then
+      mvn versions:set -DnewVersion=$TRAVIS_TAG -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION
+      mvn deploy -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION --settings target/travis/settings.xml
+    fi
+  - |
+    if [ "${TRAVIS_PULL_REQUEST}" = "false" ] && [ "$TRAVIS_TAG" = "" ]; then
+      mvn test scoverage:report coveralls:report -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION
+    fi
+  - |
+    if [ "${TRAVIS_PULL_REQUEST}" != "false" ]; then
+      mvn test -B -Dscala.artifact.version=$SCALAVER -Dscala.version=$TRAVIS_SCALA_VERSION
+    fi
