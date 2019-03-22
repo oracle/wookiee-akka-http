@@ -9,7 +9,7 @@ import com.webtrends.harness.component.akkahttp.client.oauth.token.GrantType
 class ImplicitStrategy extends Strategy(GrantType.Implicit) {
   override def getAuthorizeUrl(config: ConfigLike, params: Map[String, String] = Map.empty): Option[Uri] = {
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.authorizeUrl))
       .withQuery(Uri.Query(params ++ Map("response_type" -> "token", "client_id" -> config.clientId)))
 

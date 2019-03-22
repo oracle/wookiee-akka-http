@@ -12,7 +12,7 @@ class ClientCredentialsStrategy extends Strategy(GrantType.ClientCredentials) {
 
   override def getAccessTokenSource(config: ConfigLike, params: Map[String, String] = Map.empty, headers: Map[String, String] = Map.empty): Source[HttpRequest, NotUsed] = {
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.tokenUrl))
 
     val request = HttpRequest(

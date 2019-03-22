@@ -10,7 +10,7 @@ import com.webtrends.harness.component.akkahttp.client.oauth.token.GrantType
 class AuthorizationCodeStrategy extends Strategy(GrantType.AuthorizationCode) {
   override def getAuthorizeUrl(config: ConfigLike, params: Map[String, String] = Map.empty): Option[Uri] = {
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.authorizeUrl))
       .withQuery(Uri.Query(params ++ Map("response_type" -> "code", "client_id" -> config.clientId)))
 
@@ -22,7 +22,7 @@ class AuthorizationCodeStrategy extends Strategy(GrantType.AuthorizationCode) {
     require(params.contains("redirect_uri"))
 
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.tokenUrl))
 
     val request = HttpRequest(

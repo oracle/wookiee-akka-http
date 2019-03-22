@@ -1,13 +1,11 @@
 package com.webtrends.harness.component.akkahttp.client
 
-import java.net.URI
-
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{Flow, Sink, Source}
-import com.webtrends.harness.component.akkahttp.client.oauth.token.Error.{InvalidClient, UnauthorizedException}
 import com.webtrends.harness.component.akkahttp.client.oauth._
 import com.webtrends.harness.component.akkahttp.client.oauth.config.Config
+import com.webtrends.harness.component.akkahttp.client.oauth.token.Error.{InvalidClient, UnauthorizedException}
 import com.webtrends.harness.component.akkahttp.client.oauth.token.{AccessToken, GrantType}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{AsyncFlatSpec, MustMatchers}
@@ -29,7 +27,7 @@ class OAuthClientTest extends AsyncFlatSpec
   it should "#getAuthorizeUrl should delegate processing to strategy" in {
     import strategy._
 
-    val config = Config("xxx", "yyy", site = URI.create("https://example.com"), authorizeUrl = "/oauth/custom_authorize")
+    val config = Config("xxx", "yyy", site = Uri("https://example.com"), authorizeUrl = "/oauth/custom_authorize")
     val client = OAuthClient(config)
     val result = client.getAuthorizeUrl(GrantType.AuthorizationCode, Map("redirect_uri" -> "https://example.com/callback"))
     val actual = result.get.toString
@@ -57,7 +55,7 @@ class OAuthClientTest extends AsyncFlatSpec
     )
 
     val mockConnection = Flow[HttpRequest].map(_ => response)
-    val config         = Config("xxx", "yyy", URI.create("https://example.com"))
+    val config         = Config("xxx", "yyy", Uri("https://example.com"))
     val client         = OAuthClient(config, mockConnection)
     val result         = client.getAccessToken(GrantType.AuthorizationCode, Map("code" -> "zzz", "redirect_uri" -> "https://example.com"))
 
@@ -84,7 +82,7 @@ class OAuthClientTest extends AsyncFlatSpec
     )
 
     val mockConnection = Flow[HttpRequest].map(_ => response)
-    val config         = Config("xxx", "yyy", URI.create("https://example.com"))
+    val config         = Config("xxx", "yyy", Uri("https://example.com"))
     val client         = OAuthClient(config, mockConnection)
     val result         = client.getAccessToken(GrantType.AuthorizationCode, Map("code" -> "zzz", "redirect_uri" -> "https://example.com"))
 
@@ -113,7 +111,7 @@ class OAuthClientTest extends AsyncFlatSpec
     )
 
     val mockConnection = Flow[HttpRequest].map(_ => response)
-    val config         = Config("xxx", "yyy", URI.create("https://example.com"))
+    val config         = Config("xxx", "yyy", Uri("https://example.com"))
     val client         = OAuthClient(config, mockConnection)
     val result         = client.getAccessToken(GrantType.AuthorizationCode, Map("code" -> "zzz", "redirect_uri" -> "https://example.com"))
 
@@ -154,12 +152,17 @@ class OAuthClientTest extends AsyncFlatSpec
       }
       .map(_ => response)
 
-    val config = Config("xxx", "yyy", URI.create("https://example.com"))
+    val config = Config("xxx", "yyy", Uri("https://example.com"))
     val client = OAuthClient(config, mockConnection)
     val result = Source.single(request).via(client.getConnectionWithAccessToken(accessToken)).runWith(Sink.head)
 
     result.map { r =>
       assert(r.status.isSuccess())
     }
+  }
+
+  it should "construct schema and host correctly" in {
+    val config         = Config("xxx", "yyy", Uri("https://example.com:8080"))
+    assert(config.getSchemaAndHost == "https://example.com:8080")
   }
 }

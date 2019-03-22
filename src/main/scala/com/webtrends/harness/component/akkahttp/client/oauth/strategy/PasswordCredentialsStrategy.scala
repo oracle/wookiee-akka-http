@@ -16,7 +16,7 @@ class PasswordCredentialsStrategy extends Strategy(GrantType.PasswordCredentials
     require(params.contains("password"))
 
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.tokenUrl))
 
     val request = HttpRequest(

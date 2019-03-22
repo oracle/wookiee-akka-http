@@ -41,7 +41,7 @@ class OAuthClient(config: ConfigLike, connection: Option[Flow[HttpRequest, HttpR
       .via(connection.getOrElse(defaultConnection))
 
   private def defaultConnection: Flow[HttpRequest, HttpResponse, _] =
-    config.site.getScheme match {
+    config.site.scheme match {
       case "http"  => Http().outgoingConnection(config.getHost, config.getPort)
       case "https" => Http().outgoingConnectionHttps(config.getHost, config.getPort)
     }

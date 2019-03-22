@@ -14,7 +14,7 @@ class RefreshTokenStrategy extends Strategy(GrantType.RefreshToken) {
     require(params.contains("refresh_token"))
 
     val uri = Uri
-      .apply(config.site.toASCIIString)
+      .apply(config.getSchemaAndHost)
       .withPath(Uri.Path(config.tokenUrl))
 
     val request = HttpRequest(
