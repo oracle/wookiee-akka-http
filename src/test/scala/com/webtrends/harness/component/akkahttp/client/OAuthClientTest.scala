@@ -3,10 +3,12 @@ package com.webtrends.harness.component.akkahttp.client
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.util.ByteString
 import com.webtrends.harness.component.akkahttp.client.oauth._
 import com.webtrends.harness.component.akkahttp.client.oauth.config.Config
 import com.webtrends.harness.component.akkahttp.client.oauth.token.Error.{InvalidClient, UnauthorizedException}
 import com.webtrends.harness.component.akkahttp.client.oauth.token.{AccessToken, GrantType}
+import org.json4s.jackson.JsonMethods._
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{AsyncFlatSpec, MustMatchers}
 
@@ -61,6 +63,26 @@ class OAuthClientTest extends AsyncFlatSpec
 
     result.map { r =>
       assert(r.isRight)
+    }
+  }
+
+  it should "parse json to access tokens even if expires_in is a string" in {
+    val tokenJson =
+        s"""
+           |{
+           |  "access_token": "xxx",
+           |  "token_type": "bearer",
+           |  "expires_in": "86400",
+           |  "refresh_token": "yyy"
+           |}
+         """.stripMargin
+
+    val resp = HttpResponse(StatusCodes.Accepted, List.empty[HttpHeader],
+      HttpEntity.Strict(ContentTypes.`application/json`, ByteString(tokenJson)))
+    val tokenFut = AccessToken(resp)
+
+    tokenFut.map { token =>
+      assert(token.expires_in == 86400)
     }
   }
 
