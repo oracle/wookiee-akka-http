@@ -4,32 +4,12 @@
   ~ @author cuthbertm on 10/22/14 12:01 PM
   -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
     <modelVersion>4.0.0</modelVersion>
-
-    <profiles>
-        <profile>
-            <id>dev</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <properties>
-                <scala.artifact.version>2.11</scala.artifact.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>dev12</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <properties>
-                <scala.artifact.version>2.12</scala.artifact.version>
-            </properties>
-        </profile>
-    </profiles>
 
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
+        <scala.version>2.11.12</scala.version>
+        <scala.artifact.version>2.11</scala.artifact.version>
         <build.number>999</build.number>
         <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
