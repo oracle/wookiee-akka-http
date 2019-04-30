@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014. Webtrends (http://www.webtrends.com)
+ * Copyright (c) 2014. Webtrends (https://www.webtrends.com)
  */
 package com.webtrends.harness.component.akkahttp.routes
 
