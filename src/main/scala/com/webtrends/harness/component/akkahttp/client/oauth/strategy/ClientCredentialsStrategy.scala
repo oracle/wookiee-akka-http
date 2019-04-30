@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.akkahttp.client.oauth.strategy
 
 import akka.NotUsed
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{Authorization, BasicHttpCredentials, RawHeader}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.Source
 import com.webtrends.harness.component.akkahttp.client.oauth.config.ConfigLike
@@ -19,7 +19,8 @@ class ClientCredentialsStrategy extends Strategy(GrantType.ClientCredentials) {
       method = config.tokenMethod,
       uri = uri,
       headers = List(
-        RawHeader("Accept", "*/*")
+        RawHeader("Accept", "*/*"),
+        Authorization(BasicHttpCredentials (config.clientId, config.clientSecret))
       ) ++ getHeaders(headers),
       FormData(
         params ++ Map(
