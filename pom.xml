@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2014. Webtrends (http://www.webtrends.com)
+  ~ Copyright (c) 2014. Webtrends (https://www.webtrends.com)
   ~ @author Spencer Wood
   -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="https://maven.apache.org/POM/4.0.0" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <properties>
@@ -30,11 +30,11 @@
     <repositories>
         <repository>
             <id>JFrog</id>
-            <url>http://oss.jfrog.org/oss-release-local</url>
+            <url>https://oss.jfrog.org/oss-release-local</url>
         </repository>
         <repository>
             <id>JFrog Snap</id>
-            <url>http://oss.jfrog.org/oss-snapshot-local</url>
+            <url>https://oss.jfrog.org/oss-snapshot-local</url>
         </repository>
     </repositories>
 
@@ -47,12 +47,12 @@
         <repository>
             <id>oss-jfrog-artifactory</id>
             <name>oss-jfrog-artifactory-releases</name>
-            <url>http://oss.jfrog.org/artifactory/oss-release-local</url>
+            <url>https://oss.jfrog.org/artifactory/oss-release-local</url>
         </repository>
         <snapshotRepository>
             <id>oss-jfrog-artifactory</id>
             <name>oss-jfrog-artifactory-snapshots</name>
-            <url>http://oss.jfrog.org/artifactory/oss-snapshot-local</url>
+            <url>https://oss.jfrog.org/artifactory/oss-snapshot-local</url>
         </snapshotRepository>
     </distributionManagement>
 
