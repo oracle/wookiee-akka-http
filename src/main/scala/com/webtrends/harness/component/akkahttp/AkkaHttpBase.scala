@@ -90,8 +90,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
         fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
       completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
     case ex: Throwable =>
-      val firstClass = ex.getStackTrace.headOption.map(_.getClassName).getOrElse("<unknown class>")
-      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back")
+      val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+        .getOrElse(ex.getClass.getSimpleName)
+      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
       complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
   def rejectionHandler: RejectionHandler = RejectionHandler
