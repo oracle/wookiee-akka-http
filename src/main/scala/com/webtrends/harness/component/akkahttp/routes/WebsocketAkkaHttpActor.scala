@@ -5,6 +5,9 @@ import akka.http.scaladsl.server.Directives.reject
 import akka.http.scaladsl.settings.ServerSettings
 import akka.http.scaladsl.server.Directives._
 import com.webtrends.harness.component.akkahttp.WebsocketAkkaHttpSettings
+import com.webtrends.harness.health.{ComponentState, HealthComponent}
+
+import scala.concurrent.Future
 
 object WebsocketAkkaHttpActor {
   def props(settings: WebsocketAkkaHttpSettings) = {
@@ -21,5 +24,9 @@ class WebsocketAkkaHttpActor(port: Int, interface: String, settings: ServerSetti
     reject()
   } else {
     WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+  }
+
+  override def checkHealth: Future[HealthComponent] = {
+    Future.successful(HealthComponent("WebsocketAkkaHttpActor", ComponentState.NORMAL, "Websocket Actor Up"))
   }
 }
