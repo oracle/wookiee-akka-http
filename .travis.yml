@@ -3,6 +3,8 @@ language: scala
 jdk:
   - oraclejdk8
 
+dist: xenial
+
 addons:
   apt:
     packages:
