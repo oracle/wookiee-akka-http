@@ -4,9 +4,7 @@
   ~ @author Spencer Wood
   -->
 <project xmlns="https://maven.apache.org/POM/4.0.0" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
     <modelVersion>4.0.0</modelVersion>
-
     <properties>
         <!-- Pull the build.number from the build system and use it in the manifest of the jar -->
         <build.number>999</build.number>
@@ -22,13 +20,11 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
     </properties>
-
     <groupId>com.webtrends</groupId>
     <artifactId>wookiee-akka-http_2.11</artifactId>
     <version>1.5-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Component: Akka Http</name>
-
     <repositories>
         <repository>
             <id>JFrog</id>
@@ -39,7 +35,6 @@
             <url>https://oss.jfrog.org/oss-snapshot-local</url>
         </repository>
     </repositories>
-
     <distributionManagement>
         <site>
             <id>${project.artifactId}-site</id>
@@ -57,7 +52,6 @@
             <url>https://oss.jfrog.org/artifactory/oss-snapshot-local</url>
         </snapshotRepository>
     </distributionManagement>
-
     <dependencies>
         <dependency>
             <groupId>com.webtrends</groupId>
@@ -141,7 +135,6 @@
             </exclusions>
         </dependency>
     </dependencies>
-
     <build>
         <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>
         <testSourceDirectory>${basedir}/src/test/scala</testSourceDirectory>
