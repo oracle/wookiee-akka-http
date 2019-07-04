@@ -13,17 +13,17 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
+import com.typesafe.config.{ConfigObject, ConfigValue}
 import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase.{formats, _}
+import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
+import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
+import com.webtrends.harness.logging.LoggingAdapter
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
-import com.typesafe.config.{Config, ConfigFactory, ConfigObject, ConfigValue}
-import com.webtrends.harness.component.akkahttp.logging.AccessLog
-import com.webtrends.harness.logging.LoggingAdapter
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable
@@ -92,7 +92,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
     case ex: Throwable =>
       val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
         .getOrElse(ex.getClass.getSimpleName)
-      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+      accessLog.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
       complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
   def rejectionHandler: RejectionHandler = RejectionHandler
@@ -152,7 +152,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
                                 case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
                                   completeWith(marshaller) { completeFunc => completeFunc(data) }
                                 case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
-                                  log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                                  accessLog.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                                   complete(InternalServerError)
                                 case AkkaHttpCommandResponse(None, _, _, sc, _) =>
                                   complete(sc.get.asInstanceOf[StatusCode])
@@ -170,14 +170,14 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
                                 completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                             }
                           case Success(unknownResponse) =>
-                            log.error(s"Got unknown response $unknownResponse")
+                            accessLog.error(s"Got unknown response $unknownResponse")
                             logAccess(request, outputBean, Some(InternalServerError))
                             complete(InternalServerError)
                           case Failure(f) =>
                             val akkaEx = beforeFailedReturn[T](outputBean, f match {
                               case akkaEx: AkkaHttpException[T] => akkaEx
                               case ex =>
-                                log.error(s"Command failed with $ex")
+                                accessLog.error(s"Command failed with $ex")
                                 AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
                             }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
                             logAccess(request, outputBean, Some(akkaEx.statusCode))
