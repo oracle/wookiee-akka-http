@@ -30,7 +30,6 @@ import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
 
 case class AkkaHttpCommandResponse[T](data: Option[T],
-                                      responseType: String = "application/json",
                                       marshaller: Option[ToResponseMarshaller[T]] = None,
                                       statusCode: Option[StatusCode] = None,
                                       headers: Seq[HttpHeader] = List()) extends BaseCommandResponse[T]
@@ -140,33 +139,32 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
                             logAccess(request, outputBean, finalResp.statusCode)
                             respondWithHeaders(finalResp.headers: _*) {
                               finalResp match {
-                                case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _, _) =>
+                                case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _) =>
                                   route
-                                case AkkaHttpCommandResponse(Some(data), ct, None, sc, _) =>
+                                case AkkaHttpCommandResponse(Some(data), None, sc, _) =>
                                   val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
                                     fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
                                   completeWith(succMarshaller) { completeFunc =>
-                                    completeFunc((sc.get, immutable.Seq(
-                                      parseHeader("Content-Type", ct)).flatten, data))
+                                    completeFunc((sc.get, immutable.Seq(), data))
                                   }
-                                case AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _, _) =>
+                                case AkkaHttpCommandResponse(Some(data), Some(marshaller), _, _) =>
                                   completeWith(marshaller) { completeFunc => completeFunc(data) }
-                                case AkkaHttpCommandResponse(Some(unknown), _, _, sc, _) =>
+                                case AkkaHttpCommandResponse(Some(unknown), _, sc, _) =>
                                   accessLog.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                                   complete(InternalServerError)
-                                case AkkaHttpCommandResponse(None, _, _, sc, _) =>
+                                case AkkaHttpCommandResponse(None, _, sc, _) =>
                                   complete(sc.get.asInstanceOf[StatusCode])
                               }
                             }
                           case Success(response: BaseCommandResponse[T]) =>
-                            val akkaResp = AkkaHttpCommandResponse[T](response.data, response.responseType)
+                            val akkaResp = AkkaHttpCommandResponse[T](response.data)
                             val codeResp = akkaResp.copy(statusCode = Some(defaultCodes[T](outputBean, akkaResp)))
                             val finalResp = beforeReturn(outputBean, codeResp)
                             logAccess(request, outputBean, finalResp.statusCode)
 
-                            (finalResp.data, finalResp.responseType) match {
-                              case (None, _) => complete(finalResp.statusCode.get)
-                              case (Some(data), _) =>
+                            finalResp.data match {
+                              case None => complete(finalResp.statusCode.get)
+                              case Some(data) =>
                                 completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                             }
                           case Success(unknownResponse) =>

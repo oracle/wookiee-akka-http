@@ -186,7 +186,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
               cr.copy(data = cr.data.map(_.asInstanceOf[T]),
                 marshaller = cr.marshaller.map(_.asInstanceOf[ToResponseMarshaller[T]]))
             case bcr: BaseCommandResponse[_] =>
-              AkkaHttpCommandResponse(bcr.data.map(_.asInstanceOf[T]), bcr.responseType)
+              AkkaHttpCommandResponse(bcr.data.map(_.asInstanceOf[T]))
           }
         } else Future.failed(CommandException(getClass.getSimpleName, "No path or method on matched endpoint."))
       case None =>
