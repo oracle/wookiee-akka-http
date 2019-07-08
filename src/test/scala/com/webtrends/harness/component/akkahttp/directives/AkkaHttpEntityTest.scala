@@ -72,7 +72,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
 
       override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
         val e = getEntity[TestEntity](bean.get)
-        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), "text/plain", statusCode = Some(StatusCodes.OK))
+        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), statusCode = Some(StatusCodes.OK))
         Future.successful(response)
       }
     }
@@ -98,7 +98,7 @@ class AkkaHttpEntityTest extends FunSuite with PropertyChecks with MustMatchers 
 
       override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
         val e = getEntity[TestEntity](bean.get)
-        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), "text/plain", statusCode = Some(StatusCodes.OK))
+        val response = AkkaHttpCommandResponse[T](Some("return".asInstanceOf[T]), statusCode = Some(StatusCodes.OK))
         Future.successful(response)
       }
     }
