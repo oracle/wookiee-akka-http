@@ -20,7 +20,7 @@ import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandB
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
-import com.webtrends.harness.logging.LoggingAdapter
+import com.webtrends.harness.logging.{Logger, LoggingAdapter}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
@@ -91,7 +91,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
     case ex: Throwable =>
       val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
         .getOrElse(ex.getClass.getSimpleName)
-      accessLog.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+      logger.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
       complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
   def rejectionHandler: RejectionHandler = RejectionHandler
@@ -150,7 +150,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
                                 case AkkaHttpCommandResponse(Some(data), Some(marshaller), _, _) =>
                                   completeWith(marshaller) { completeFunc => completeFunc(data) }
                                 case AkkaHttpCommandResponse(Some(unknown), _, sc, _) =>
-                                  accessLog.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                                  logger.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                                   complete(InternalServerError)
                                 case AkkaHttpCommandResponse(None, _, sc, _) =>
                                   complete(sc.get.asInstanceOf[StatusCode])
@@ -168,14 +168,14 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
                                 completeWith(marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                             }
                           case Success(unknownResponse) =>
-                            accessLog.error(s"Got unknown response $unknownResponse")
+                            logger.error(s"Got unknown response $unknownResponse")
                             logAccess(request, outputBean, Some(InternalServerError))
                             complete(InternalServerError)
                           case Failure(f) =>
                             val akkaEx = beforeFailedReturn[T](outputBean, f match {
                               case akkaEx: AkkaHttpException[T] => akkaEx
                               case ex =>
-                                accessLog.error(s"Command failed with $ex")
+                                logger.error(s"Command failed with $ex")
                                 AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
                             }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
                             logAccess(request, outputBean, Some(akkaEx.statusCode))
@@ -222,6 +222,11 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
   def beforeFailedReturn[T <: AnyRef : Manifest](commandBean: CommandBean, akkaException: AkkaHttpException[T]):
     AkkaHttpException[T] = {
     akkaException
+  }
+
+  protected def logger: Logger = Option(log) match {
+    case Some(lg) => lg
+    case None => Logger(getClass)
   }
 
   createRoutes()
