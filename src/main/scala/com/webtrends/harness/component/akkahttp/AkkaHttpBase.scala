@@ -224,9 +224,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
     akkaException
   }
 
-  protected def logger: Logger = Option(log) match {
-    case Some(lg) => lg
-    case None => Logger(getClass)
+  protected def logger: Logger = Try(Option(log).get) match {
+    case Success(lg) => lg
+    case Failure(_) => Logger(getClass)
   }
 
   createRoutes()
