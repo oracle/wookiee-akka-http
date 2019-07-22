@@ -70,9 +70,9 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Return the value for the given header key
   def getHeader(bean: CommandBean, name: String): Option[String] = {
-    val mp = bean.getValue[Map[String, String]](AkkaHttpBase.RequestHeaders)
-      .getOrElse(Map.empty[String, String])
-    mp.get(name).orElse(mp.get(name.toLowerCase))
+    bean.getValue[Map[String, String]](AkkaHttpBase.RequestHeaders).flatMap { mp =>
+      mp.get(name.toLowerCase)
+    }
   }
 
   // Method that adds all routes from allPaths
