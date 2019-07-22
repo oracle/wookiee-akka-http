@@ -84,9 +84,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
   def method: HttpMethod = HttpMethods.GET
   def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
   def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
-    case AkkaHttpException(msg, statusCode, headers, _) =>
+    case AkkaHttpException(msg, statusCode, headers, marsh) =>
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
-        fromStatusCodeAndHeadersAndValue(entityMarshaller[T](fmt = formats))
+        fromStatusCodeAndHeadersAndValue(marsh.getOrElse(entityMarshaller[T](fmt = formats)))
       completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
     case ex: Throwable =>
       val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
