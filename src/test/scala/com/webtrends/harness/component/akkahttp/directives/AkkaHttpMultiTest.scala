@@ -1,6 +1,7 @@
 package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
+import akka.http.scaladsl.model.HttpHeader.ParsingResult
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, `Access-Control-Request-Method`}
 import akka.http.scaladsl.server.Route
@@ -11,7 +12,6 @@ import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
 import com.webtrends.harness.component.akkahttp.util.TestEntity
-import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
 
@@ -116,7 +116,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
   }
 
   test("should respect endpoint addition order") {
-    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
     val routes = getToughRoutes()
 
     Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
@@ -214,8 +213,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
       }
     }
 
-    import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
-
     Get("/same/path") ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[String] mustEqual "\"GET\""
@@ -244,6 +241,18 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     parseHeader("Content-Type", "application/json").isDefined mustEqual true
   }
 
+  test("get headers") {
+    val routes = getToughRoutes()
+    val header: HttpHeader = HttpHeader.parse("Header", "headValue") match {
+      case ParsingResult.Ok(head, _) => head
+      case ParsingResult.Error(err) => throw new IllegalStateException(err.detail)
+    }
+    Get("/header").addHeader(header) ~> routes.toSet.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[String] mustEqual "\"headValue\""
+    }
+  }
+
   private def getToughRoutes(corsExt: Boolean = false): List[Route] = {
     val routes = collection.mutable.LinkedHashSet[Route]()
 
@@ -253,7 +262,8 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         Endpoint("two/$arg", HttpMethods.GET),
         Endpoint("one/strings", HttpMethods.GET),
         Endpoint("one/$arg", HttpMethods.GET),
-        Endpoint("two/$arg", HttpMethods.POST))
+        Endpoint("two/$arg", HttpMethods.POST),
+        Endpoint("header", HttpMethods.GET))
 
       override def addRoute(r: Route): Unit =
         routes.add(r)
@@ -269,6 +279,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         case ("one/$arg", HttpMethods.GET) =>
           Future.successful(CommandResponse(bean.getValue[Holder1](AkkaHttpBase.Segments).map(holder =>
             holder._1)))
+        case ("header", HttpMethods.GET) =>
+          val header = getHeader(bean, "Header")
+          Future.successful(CommandResponse(Some(header.get)))
       }
     }
 

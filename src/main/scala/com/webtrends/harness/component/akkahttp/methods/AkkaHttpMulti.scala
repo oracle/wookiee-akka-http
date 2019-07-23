@@ -68,8 +68,15 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   def getQueryParams(bean: CommandBean): Map[String, String] =
     bean.getValue[Map[String, String]](AkkaHttpBase.QueryParams).getOrElse(Map.empty[String, String])
 
+  // Return the value for the given header key
+  def getHeader(bean: CommandBean, name: String): Option[String] = {
+    bean.getValue[Map[String, String]](AkkaHttpBase.RequestHeaders).flatMap { mp =>
+      mp.get(name.toLowerCase)
+    }
+  }
+
   // Method that adds all routes from allPaths
-  override def createRoutes() = {
+  override def createRoutes(): Unit = {
     // Path String to converted PathMatcher and number of Query Segments (variables on the path)
     val pathsToSegments = mutable.HashMap[String, Directive1[AkkaHttpPathSegments]]()
 
