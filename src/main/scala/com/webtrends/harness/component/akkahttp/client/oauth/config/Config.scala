@@ -8,7 +8,8 @@ case class Config(
     site: Uri,
     authorizeUrl: String = "/oauth/authorize",
     tokenUrl: String = "/oauth/token",
-    tokenMethod: HttpMethod = HttpMethods.POST
+    tokenMethod: HttpMethod = HttpMethods.POST,
+    clientLocation: ClientLocation = OnBoth
 ) extends ConfigLike {
   def getHost: String = site.authority.host.address()
   def getPort: Int = site.scheme match {
