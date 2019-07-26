@@ -21,16 +21,12 @@ class PasswordCredentialsStrategy extends Strategy(GrantType.PasswordCredentials
     val request = HttpRequest(
       method = config.tokenMethod,
       uri = uri,
-      headers = List(
-        RawHeader("Accept", "*/*"),
-        Authorization(BasicHttpCredentials (config.clientId, config.clientSecret))
-      ) ++ getHeaders(headers),
+      headers = getHeaders(headers) ++ optionalAddClient(List(
+        RawHeader("Accept", "*/*")), config),
       FormData(
-        params ++ Map(
-          "grant_type"    -> grant.value,
-          "client_id"     -> config.clientId,
-          "client_secret" -> config.clientSecret
-        )
+        params ++ optionalAddClient(Map(
+          "grant_type" -> grant.value
+        ), config)
       ).toEntity(HttpCharsets.`UTF-8`)
     )
 
