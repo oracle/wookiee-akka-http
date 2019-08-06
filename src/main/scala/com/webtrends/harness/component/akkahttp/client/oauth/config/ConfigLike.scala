@@ -12,4 +12,11 @@ trait ConfigLike {
   def getHost: String
   def getPort: Int
   def getSchemaAndHost: String
+  def clientLocation: ClientLocation
 }
+
+sealed trait ClientLocation
+
+case object OnBoth extends ClientLocation
+case object OnHeader extends ClientLocation
+case object OnBody extends ClientLocation
