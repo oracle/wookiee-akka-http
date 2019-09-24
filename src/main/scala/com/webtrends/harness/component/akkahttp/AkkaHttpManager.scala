@@ -13,6 +13,7 @@ import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
 import com.webtrends.harness.utils.ConfigUtil
+import AkkaHttpManager._
 
 import scala.concurrent.duration._
 import scala.util.Try
@@ -93,43 +94,56 @@ object AkkaHttpManager {
   val WebsocketAkkaHttpName = "WebsocketAkkaHttp"
 }
 
-final case class InternalAkkaHttpSettings(interface: String, port: Int, serverSettings: ServerSettings)
+final case class InternalAkkaHttpSettings(interface: String, port: Int, serverSettings: ServerSettings, httpsPort: Option[Int])
 final case class ExternalAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
-                                          serverSettings: ServerSettings)
-final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
+                                          serverSettings: ServerSettings, httpsPort: Option[Int])
+final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int, httpsPort: Option[Int],
                                            serverSettings: ServerSettings, keepAliveFrequency: FiniteDuration, keepAliveOn: Boolean)
 final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: ExternalAkkaHttpSettings,
                                   ws: WebsocketAkkaHttpSettings)
 
 object AkkaHttpSettings {
+  val InternalServer = "internal-server"
+  val ExternalServer = "external-server"
+  val WebsocketServer = "websocket-server"
+
   def apply(config: Config): AkkaHttpSettings = {
-    val internalPort = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.http-port", config.getInt, 8080)
-    val internalInterface = ConfigUtil.getDefaultValue("wookiee-akka-http.internal-server.interface", config.getString, "0.0.0.0")
+    def getHttps(server: String): Option[Int] = {
+      if (config.hasPath(s"$ComponentName.$server.https-port"))
+        Some(config.getInt(s"$ComponentName.$server.https-port"))
+      else None
+    }
+
+    val internalPort = ConfigUtil.getDefaultValue(s"$ComponentName.$InternalServer.http-port", config.getInt, 8080)
+    val internalInterface = ConfigUtil.getDefaultValue(s"$ComponentName.$InternalServer.interface", config.getString, "0.0.0.0")
+    val internalHttpsPort = getHttps(InternalServer)
 
     val externalServerEnabled = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.enabled", config.getBoolean, false)
+      s"$ComponentName.$ExternalServer.enabled", config.getBoolean, false)
     val externalPort = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.http-port", config.getInt, 8082)
+      s"$ComponentName.$ExternalServer.http-port", config.getInt, 8082)
+    val externalHttpsPort = getHttps(ExternalServer)
     val externalInterface = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.external-server.interface", config.getString, "0.0.0.0")
+      s"$ComponentName.$ExternalServer.interface", config.getString, "0.0.0.0")
     val wsEnabled = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.websocket-server.enabled", config.getBoolean, false)
+      s"$ComponentName.$WebsocketServer.enabled", config.getBoolean, false)
     val wsPort = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.websocket-server.port", config.getInt, 8081)
+      s"$ComponentName.$WebsocketServer.port", config.getInt, 8081)
+    val wssPort = getHttps(WebsocketServer)
     val wsInterface = ConfigUtil.getDefaultValue(
-      s"${AkkaHttpManager.ComponentName}.websocket-server.interface", config.getString, "0.0.0.0")
+      s"$ComponentName.$WebsocketServer.interface", config.getString, "0.0.0.0")
     // How often to send a keep alive heartbeat message back
     val keepAliveFrequency: FiniteDuration = Try(config.getDuration(
-      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.interval", TimeUnit.SECONDS).toInt).getOrElse(30) seconds
+      s"$ComponentName.websocket-keep-alives.interval", TimeUnit.SECONDS).toInt).getOrElse(30) seconds
     val keepAliveOn: Boolean = Try(config.getBoolean(
-      s"${AkkaHttpManager.ComponentName}.websocket-keep-alives.enabled")).getOrElse(false)
+      s"$ComponentName.websocket-keep-alives.enabled")).getOrElse(false)
     val serverSettings = ServerSettings(config)
 
 
     AkkaHttpSettings(
-      InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings),
-      ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings),
-      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, serverSettings, keepAliveFrequency, keepAliveOn)
+      InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings, internalHttpsPort),
+      ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings, externalHttpsPort),
+      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, wssPort, serverSettings, keepAliveFrequency, keepAliveOn)
     )
   }
 }
