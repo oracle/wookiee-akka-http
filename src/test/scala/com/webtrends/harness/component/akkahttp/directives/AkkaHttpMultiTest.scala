@@ -136,55 +136,27 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     }
   }
 
-  test("should support OPTION on all endpoints") {
+  test("should support CORS by default on all endpoints") {
     val routes = getToughRoutes()
 
-    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+    Options("/two/strings").withHeaders(
+      Origin(HttpOrigin("http://domain-a.com")),
+      `Access-Control-Request-Method`(HttpMethods.GET)
+    ) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
       header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET"
     }
-    Options("/two/arg").withHeaders(`Access-Control-Request-Method`(HttpMethods.GET)) ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-    }
-    Options("/two/arg") ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, POST, OPTIONS"
-    }
-    Options("/one/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
-    }
-    Options("/one/arg1").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+
+    Options("/two/arg").withHeaders(
+      Origin(HttpOrigin("http://domain-a.com")),
+      `Access-Control-Request-Method`(HttpMethods.GET)
+    ) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
       header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
-    }
-  }
-
-  test("should not return multiple CORS values with redundant extensions") {
-    val routes = getToughRoutes(true)
-
-    HttpRequest(HttpMethods.GET, "/two/strings").withHeaders(
-      Origin(HttpOrigin("http://meow.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
-      val h = headers
-      val allowCreds = h.filter(_.name() == "Access-Control-Allow-Credentials")
-      allowCreds.size mustEqual 1 // Check that there were no dupes
-      allowCreds.head.value() mustEqual "true"
-      val allowOrigin = h.filter(_.name() == "Access-Control-Allow-Origin")
-      allowOrigin.size mustEqual 1 // Check that there were no dupes
-      allowOrigin.head.value() mustEqual "http://meow.com"
-      status mustEqual StatusCodes.OK
-      entityAs[String] mustEqual "\"getted2\""
-    }
-
-    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
-      header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, POST"
     }
   }
 
