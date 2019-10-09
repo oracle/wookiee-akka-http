@@ -93,15 +93,10 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       new AkkaHttpGet with AkkaHttpCORS with TestBaseCommand {
         override def path: String = "test"
 
-        override def corsSettings: CorsSettings = CorsSettings.Default(
-          super.corsSettings.allowGenericHttpRequests,
-          super.corsSettings.allowCredentials,
-          super.corsSettings.allowedOrigins,
-          super.corsSettings.allowedHeaders,
-          super.corsSettings.allowedMethods,
-          exposeHeaders,
-          super.corsSettings.maxAge
+        override def corsSettingsByPath(path: String): CorsSettings = CorsSettings.defaultSettings.copy(
+          exposedHeaders = exposeHeaders
         )
+
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
           Future.successful(AkkaHttpCommandResponse(None))
         }
@@ -129,18 +124,12 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       new AkkaHttpGet with AkkaHttpCORS with TestBaseCommand {
         override def path: String = "test"
 
-        override def corsSettings: CorsSettings = CorsSettings.Default(
-          super.corsSettings.allowGenericHttpRequests,
-          super.corsSettings.allowCredentials,
-          HttpOriginRange(
+        override def corsSettingsByPath(path: String): CorsSettings = CorsSettings.defaultSettings.copy(
+          allowedOrigins = HttpOriginRange(
             HttpOrigin("http://www.a.com"),
             HttpOrigin("http://www.b.com"),
             HttpOrigin("http://www.c.com")
-          ),
-          super.corsSettings.allowedHeaders,
-          super.corsSettings.allowedMethods,
-          super.corsSettings.exposedHeaders,
-          super.corsSettings.maxAge
+          )
         )
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
           Future.successful(AkkaHttpCommandResponse(None))

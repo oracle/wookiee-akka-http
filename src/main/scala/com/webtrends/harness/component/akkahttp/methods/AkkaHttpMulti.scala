@@ -9,14 +9,12 @@ import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ListBuffer
 import scala.collection.{immutable, mutable}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -28,6 +26,18 @@ import scala.concurrent.Future
 trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
+
+  override protected val corsEnabled: Boolean = true
+
+  // Allows setting custom CORS settings by endpoint.
+  // Default behavior allows all origins, allows credentials, and allows all methods defined in this Command for the path
+  override protected def corsSettingsByPath(path: String): CorsSettings = {
+    val methods = allPaths
+      .groupBy(_.path)
+      .getOrElse(path, List())
+      .map(_.method)
+    AkkaHttpCORS.corsSettings(methods)
+  }
 
   // Process the command, the (String, HttpMethod) inputs will be the from the allPaths Endpoint
   // that was hit. So if we hit Endpoint("some/$var1/path", HttpMethods.GET) then the
@@ -136,38 +146,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           log.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
-    }
-
-    // Add an OPTIONS endpoint for all paths, group them by path string for Allowed methods
-    try {
-      // Doing this instead of a functional approach to maintain
-      // order of evaluation for allPaths in the Options calls too
-      var endpointMap = ListMap[String, ListBuffer[HttpMethod]]()
-      allPaths.foreach { endpoint =>
-        endpointMap.get(endpoint.path) match {
-          case Some(methods) => methods.append(endpoint.method)
-          case None => endpointMap = endpointMap + (endpoint.path -> ListBuffer(endpoint.method))
-        }
-      }
-      // Create inner option routes
-      val optionRoutes = endpointMap.map { case (pth, methods) =>
-        ignoreTrailingSlash {
-          pathsToSegments(pth) { segments: AkkaHttpPathSegments =>
-            handleRejections(corsRejectionHandler) {
-              CorsDirectives.cors(corsSettings(methods.toList)) {
-                handleOptions(pth, methods.toList, segments)
-              }
-            }
-          }
-        }
-      }
-
-      addRoute(options {
-        optionRoutes.reduceLeft(_ ~ _)
-      })
-    } catch {
-      case ex: Throwable =>
-        log.error(s"Error adding OPTION paths for this class, will not support OPTION(s) for endpoints here", ex)
     }
   }
 
