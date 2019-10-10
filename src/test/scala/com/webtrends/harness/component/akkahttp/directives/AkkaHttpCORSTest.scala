@@ -146,9 +146,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
 
       Get("/test")
         .withHeaders(List(Origin(notAllowedOrigin)))~> routes.reduceLeft(_ ~ _) ~> check {
-        inside(rejection) {
-          case CorsRejection(Some(`notAllowedOrigin`), None, None) =>
-        }
+        status mustEqual StatusCodes.BadRequest
       }
     }
   }
@@ -222,10 +220,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       Options("/test") ~>
         Origin(HttpOrigin("http://www.foo.test")) ~>
         `Access-Control-Request-Method`(HttpMethods.GET) ~> routes.reduceLeft(_ ~ _) ~> check {
-
-        inside(rejection) {
-          case CorsRejection(None, Some(HttpMethods.GET), None) =>
-        }
+        status mustEqual StatusCodes.BadRequest
       }
     }
 
