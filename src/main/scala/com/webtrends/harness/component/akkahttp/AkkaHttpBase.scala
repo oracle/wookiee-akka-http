@@ -105,8 +105,9 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
       log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
       complete(StatusCodes.InternalServerError, "There was an internal server error.")
   }
+
   def rejectionHandler: RejectionHandler = RejectionHandler
-    .default.withFallback(corsRejectionHandler)
+    .default
     .mapRejectionResponse {
       case res @ HttpResponse(_, _, HttpEntity.Strict(_, data), _) =>
         val json = serialization.write(AkkaHttpRejection(data.utf8String))(formats)
@@ -119,7 +120,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
 
   private def corsSupport(path: String): Directive0 = {
     if (corsEnabled) {
-      CorsDirectives.cors(corsSettingsByPath(path))
+      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettingsByPath(path))
     } else {
       pass
     }
