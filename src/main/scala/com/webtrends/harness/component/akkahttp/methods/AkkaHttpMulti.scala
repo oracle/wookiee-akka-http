@@ -48,11 +48,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
-  // Override giving same functionality as AkkaHttpBase so that AkkaHttpCORS doesn't break our custom CORS
-  override def httpMethod(method: HttpMethod): Directive0 = if (this.isInstanceOf[AkkaHttpCORS])
-    AkkaHttpBase.httpMethod(method)
-  else
-    AkkaHttpBase.httpMethod(method) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
+  // Override giving same functionality as AkkaHttpBase
+  override def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
 
   // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
   // where # is the number of variable segments on the URI
@@ -146,15 +143,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           log.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
-    }
-  }
-
-  // By the time we are in here we have checked that the path matches and this is an OPTION request
-  // Override for custom OPTION behavior
-  def handleOptions(optPath: String, methodList: List[HttpMethod], segments: AkkaHttpPathSegments): Route = {
-    val methWithOption = methodList :+ HttpMethods.OPTIONS
-    complete {
-      HttpResponse(OK).withHeaders(`Access-Control-Allow-Methods`(methWithOption))
     }
   }
 
