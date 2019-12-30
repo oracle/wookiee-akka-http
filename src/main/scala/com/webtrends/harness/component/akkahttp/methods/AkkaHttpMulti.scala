@@ -1,21 +1,17 @@
 package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.marshalling.ToResponseMarshaller
-import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpResponse}
-import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.server.Directives.{entity, path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -197,8 +193,13 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
     // unmarshall if needed
     allPaths.find(e => url == e.path && method == e.method) match {
-      case Some(CustomUnmarshallerEndpoint(p, m, um)) =>
+      case Some(CustomUnmarshallerEndpoint(_, _, um)) =>
         (withSizeLimit(maxSizeBytes) & entity(um)).flatMap { entity =>
+          bean.addValue(CommandBean.KeyEntity, entity)
+          super.beanDirective(bean, url, method)
+        }
+      case Some(CustomBeanUnmarshallerEndpoint(_, _, umFunc)) =>
+        (withSizeLimit(maxSizeBytes) & entity(umFunc(bean))).flatMap { entity =>
           bean.addValue(CommandBean.KeyEntity, entity)
           super.beanDirective(bean, url, method)
         }
@@ -223,17 +224,24 @@ sealed trait Endpoint {
 
 object Endpoint {
   // Use for endpoints with no request entity
-  def apply(path: String, method: HttpMethod) = BareEndpoint(path, method)
+  def apply(path: String, method: HttpMethod) =
+    BareEndpoint(path, method)
 
   // Generic end pointing supporting application/json which will deserialize to the specified class using the class's formats
-  def apply(path: String, method: HttpMethod, entityClass: Class[_]) = DefaultJsonEndpoint(path, method, entityClass)
+  def apply(path: String, method: HttpMethod, entityClass: Class[_]) =
+    DefaultJsonEndpoint(path, method, entityClass)
 
   // End point with a provided custom marshaller
-  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) = CustomUnmarshallerEndpoint(path, method, unmarshaller)
+  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) =
+    CustomUnmarshallerEndpoint(path, method, unmarshaller)
+
+  // End point with a provided custom marshaller that gets passed the CommandBean
+  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshallFunc: CommandBean => FromRequestUnmarshaller[T]) =
+    CustomBeanUnmarshallerEndpoint(path, method, unmarshallFunc)
 
   // Added for backward compatibility.
   @deprecated
-  def apply(path: String, method: HttpMethod, entityClass: Option[Class[_]]) = {
+  def apply(path: String, method: HttpMethod, entityClass: Option[Class[_]]): Endpoint = {
     if (entityClass.isDefined)
       DefaultJsonEndpoint(path, method, entityClass.get)
     else
@@ -244,3 +252,4 @@ object Endpoint {
 case class BareEndpoint(path: String, method: HttpMethod) extends Endpoint
 case class DefaultJsonEndpoint(path: String, method: HttpMethod, entityClass: Class[_]) extends Endpoint
 case class CustomUnmarshallerEndpoint[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) extends Endpoint
+case class CustomBeanUnmarshallerEndpoint[T <: AnyRef](path: String, method: HttpMethod, unmarshallFunc: CommandBean => FromRequestUnmarshaller[T]) extends Endpoint
