@@ -1,23 +1,17 @@
 package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.marshalling.ToResponseMarshaller
-import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpResponse}
-import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.server.Directives.{entity, path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ListBuffer
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -29,6 +23,18 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
+  override protected val corsEnabled: Boolean = true
+
+  // Allows setting custom CORS settings by endpoint.
+  // Default behavior allows all origins, allows credentials, and allows all methods defined in this Command for the path
+  override protected def corsSettingsByPath(path: String): CorsSettings = {
+    val methods = allPaths
+      .groupBy(_.path)
+      .getOrElse(path, List())
+      .map(_.method)
+    AkkaHttpCORS.corsSettings(methods)
+  }
+
   // Process the command, the (String, HttpMethod) inputs will be the from the allPaths Endpoint
   // that was hit. So if we hit Endpoint("some/$var1/path", HttpMethods.GET) then the
   // values will be ("some/$var1/path", HttpMethods.GET). This method should match on
@@ -38,11 +44,8 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
 
-  // Override giving same functionality as AkkaHttpBase so that AkkaHttpCORS doesn't break our custom CORS
-  override def httpMethod(method: HttpMethod): Directive0 = if (this.isInstanceOf[AkkaHttpCORS])
-    AkkaHttpBase.httpMethod(method)
-  else
-    AkkaHttpBase.httpMethod(method) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
+  // Override giving same functionality as AkkaHttpBase
+  override def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
 
   // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
   // where # is the number of variable segments on the URI
@@ -137,47 +140,6 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           throw ex
       }
     }
-
-    // Add an OPTIONS endpoint for all paths, group them by path string for Allowed methods
-    try {
-      // Doing this instead of a functional approach to maintain
-      // order of evaluation for allPaths in the Options calls too
-      var endpointMap = ListMap[String, ListBuffer[HttpMethod]]()
-      allPaths.foreach { endpoint =>
-        endpointMap.get(endpoint.path) match {
-          case Some(methods) => methods.append(endpoint.method)
-          case None => endpointMap = endpointMap + (endpoint.path -> ListBuffer(endpoint.method))
-        }
-      }
-      // Create inner option routes
-      val optionRoutes = endpointMap.map { case (pth, methods) =>
-        ignoreTrailingSlash {
-          pathsToSegments(pth) { segments: AkkaHttpPathSegments =>
-            handleRejections(corsRejectionHandler) {
-              CorsDirectives.cors(corsSettings(methods.toList)) {
-                handleOptions(pth, methods.toList, segments)
-              }
-            }
-          }
-        }
-      }
-
-      addRoute(options {
-        optionRoutes.reduceLeft(_ ~ _)
-      })
-    } catch {
-      case ex: Throwable =>
-        log.error(s"Error adding OPTION paths for this class, will not support OPTION(s) for endpoints here", ex)
-    }
-  }
-
-  // By the time we are in here we have checked that the path matches and this is an OPTION request
-  // Override for custom OPTION behavior
-  def handleOptions(optPath: String, methodList: List[HttpMethod], segments: AkkaHttpPathSegments): Route = {
-    val methWithOption = methodList :+ HttpMethods.OPTIONS
-    complete {
-      HttpResponse(OK).withHeaders(`Access-Control-Allow-Methods`(methWithOption))
-    }
   }
 
   // Overriding this and using to pull out method and path, saving end users from having to
@@ -231,8 +193,13 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
     // unmarshall if needed
     allPaths.find(e => url == e.path && method == e.method) match {
-      case Some(CustomUnmarshallerEndpoint(p, m, um)) =>
+      case Some(CustomUnmarshallerEndpoint(_, _, um)) =>
         (withSizeLimit(maxSizeBytes) & entity(um)).flatMap { entity =>
+          bean.addValue(CommandBean.KeyEntity, entity)
+          super.beanDirective(bean, url, method)
+        }
+      case Some(CustomBeanUnmarshallerEndpoint(_, _, umFunc)) =>
+        (withSizeLimit(maxSizeBytes) & entity(umFunc(bean))).flatMap { entity =>
           bean.addValue(CommandBean.KeyEntity, entity)
           super.beanDirective(bean, url, method)
         }
@@ -257,17 +224,24 @@ sealed trait Endpoint {
 
 object Endpoint {
   // Use for endpoints with no request entity
-  def apply(path: String, method: HttpMethod) = BareEndpoint(path, method)
+  def apply(path: String, method: HttpMethod) =
+    BareEndpoint(path, method)
 
   // Generic end pointing supporting application/json which will deserialize to the specified class using the class's formats
-  def apply(path: String, method: HttpMethod, entityClass: Class[_]) = DefaultJsonEndpoint(path, method, entityClass)
+  def apply(path: String, method: HttpMethod, entityClass: Class[_]) =
+    DefaultJsonEndpoint(path, method, entityClass)
 
   // End point with a provided custom marshaller
-  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) = CustomUnmarshallerEndpoint(path, method, unmarshaller)
+  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) =
+    CustomUnmarshallerEndpoint(path, method, unmarshaller)
+
+  // End point with a provided custom marshaller that gets passed the CommandBean
+  def apply[T <: AnyRef](path: String, method: HttpMethod, unmarshallFunc: CommandBean => FromRequestUnmarshaller[T]) =
+    CustomBeanUnmarshallerEndpoint(path, method, unmarshallFunc)
 
   // Added for backward compatibility.
   @deprecated
-  def apply(path: String, method: HttpMethod, entityClass: Option[Class[_]]) = {
+  def apply(path: String, method: HttpMethod, entityClass: Option[Class[_]]): Endpoint = {
     if (entityClass.isDefined)
       DefaultJsonEndpoint(path, method, entityClass.get)
     else
@@ -278,3 +252,4 @@ object Endpoint {
 case class BareEndpoint(path: String, method: HttpMethod) extends Endpoint
 case class DefaultJsonEndpoint(path: String, method: HttpMethod, entityClass: Class[_]) extends Endpoint
 case class CustomUnmarshallerEndpoint[T <: AnyRef](path: String, method: HttpMethod, unmarshaller: FromRequestUnmarshaller[T]) extends Endpoint
+case class CustomBeanUnmarshallerEndpoint[T <: AnyRef](path: String, method: HttpMethod, unmarshallFunc: CommandBean => FromRequestUnmarshaller[T]) extends Endpoint

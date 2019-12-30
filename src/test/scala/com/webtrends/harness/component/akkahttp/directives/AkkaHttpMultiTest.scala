@@ -2,11 +2,13 @@ package com.webtrends.harness.component.akkahttp.directives
 
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.HttpHeader.ParsingResult
+import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, `Access-Control-Request-Method`}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandResponse}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
 import com.webtrends.harness.component.akkahttp._
@@ -31,7 +33,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
         Endpoint("two/strings/$count", HttpMethods.GET),
         Endpoint("separated/$arg1/args/$arg2", HttpMethods.GET),
         Endpoint("one/$a1/two/$a2/three/$3/four", HttpMethods.GET),
-        Endpoint("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET))
+        Endpoint("$ver/one/$a1/two/$a2/three/$3/$four/$last", HttpMethods.GET),
+        Endpoint("unmarsh/$val", HttpMethods.POST, insightUnmarshaller)
+      )
       override def addRoute(r: Route): Unit =
         routes += r
 
@@ -44,6 +48,9 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           val payload = getPayload[TestEntity](bean)
           val load = payload.map(te => te.copy(te.v0 + meowVal, te.v1)).getOrElse(TestEntity("default1", 0.2))
           Future.successful(CommandResponse(Some(load)))
+        case ("unmarsh/$val", HttpMethods.POST) =>
+          val payload = getPayload[TestEntity](bean)
+          Future.successful(CommandResponse(Some(payload)))
         case ("two/strings", HttpMethods.GET) =>
           Future.successful(CommandResponse(Some("getted2")))
         case ("two/strings/$count", HttpMethods.GET) =>
@@ -59,10 +66,19 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
           val params = getURIParams[Holder6](bean)
           Future.successful(CommandResponse(Some(bean("ver") + params._2 + params._3 + params._4 + bean("four") + params._6)))
       }
+
+      def insightUnmarshaller: CommandBean => FromRequestUnmarshaller[TestEntity] = { bean =>
+        Unmarshaller.messageUnmarshallerFromEntityUnmarshaller(
+          Unmarshaller.stringUnmarshaller.forContentTypes(ContentType(`application/json`))
+            .map { _ =>
+              TestEntity(s"Custom-Unmarsh-${bean("val")}", 0.0)
+            }
+        )
+      }
     }
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
-
+    Thread.sleep(2000L) // These tests only pass locally with a delay here
     Get("/getTest/") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[String] mustEqual "\"getted\""
@@ -91,6 +107,10 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     Post("/postTest?meow=test", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       entityAs[TestEntity] mustEqual TestEntity("meowtest", 0.1)
+    }
+    Post("/unmarsh/test", entity) ~> routes.reduceLeft(_ ~ _) ~> check {
+      status mustEqual StatusCodes.OK
+      entityAs[TestEntity] mustEqual TestEntity("Custom-Unmarsh-test", 0.0)
     }
     Get("/two/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
@@ -136,55 +156,27 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
     }
   }
 
-  test("should support OPTION on all endpoints") {
+  test("should support CORS by default on all endpoints") {
     val routes = getToughRoutes()
 
-    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+    Options("/two/strings").withHeaders(
+      Origin(HttpOrigin("http://domain-a.com")),
+      `Access-Control-Request-Method`(HttpMethods.GET)
+    ) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
       header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET"
     }
-    Options("/two/arg").withHeaders(`Access-Control-Request-Method`(HttpMethods.GET)) ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-    }
-    Options("/two/arg") ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, POST, OPTIONS"
-    }
-    Options("/one/strings") ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
-    }
-    Options("/one/arg1").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
+
+    Options("/two/arg").withHeaders(
+      Origin(HttpOrigin("http://domain-a.com")),
+      `Access-Control-Request-Method`(HttpMethods.GET)
+    ) ~> routes.reduceLeft(_ ~ _) ~> check {
       status mustEqual StatusCodes.OK
       header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
       header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
-    }
-  }
-
-  test("should not return multiple CORS values with redundant extensions") {
-    val routes = getToughRoutes(true)
-
-    HttpRequest(HttpMethods.GET, "/two/strings").withHeaders(
-      Origin(HttpOrigin("http://meow.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
-      val h = headers
-      val allowCreds = h.filter(_.name() == "Access-Control-Allow-Credentials")
-      allowCreds.size mustEqual 1 // Check that there were no dupes
-      allowCreds.head.value() mustEqual "true"
-      val allowOrigin = h.filter(_.name() == "Access-Control-Allow-Origin")
-      allowOrigin.size mustEqual 1 // Check that there were no dupes
-      allowOrigin.head.value() mustEqual "http://meow.com"
-      status mustEqual StatusCodes.OK
-      entityAs[String] mustEqual "\"getted2\""
-    }
-
-    Options("/two/strings").withHeaders(Origin(HttpOrigin("http://domain-a.com"))) ~> routes.reduceLeft(_ ~ _) ~> check {
-      status mustEqual StatusCodes.OK
-      header("Access-Control-Allow-Origin").get.value() mustEqual "http://domain-a.com"
-      header("Access-Control-Allow-Credentials").get.value() mustEqual "true"
-      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, OPTIONS"
+      header("Access-Control-Allow-Methods").get.value() mustEqual "GET, POST"
     }
   }
 
