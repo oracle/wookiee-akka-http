@@ -5,8 +5,8 @@ import akka.http.scaladsl.model.{HttpMethods, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteConcatenation._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import ch.megard.akka.http.cors.scaladsl.CorsRejection
 import com.webtrends.harness.command.{BaseCommandResponse, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpDelete, AkkaHttpGet, AkkaHttpPost}
@@ -93,9 +93,8 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       new AkkaHttpGet with AkkaHttpCORS with TestBaseCommand {
         override def path: String = "test"
 
-        override def corsSettingsByPath(path: String): CorsSettings = CorsSettings.defaultSettings.copy(
-          exposedHeaders = exposeHeaders
-        )
+        override def corsSettingsByPath(path: String): CorsSettings =
+          CorsSettings.defaultSettings.withExposedHeaders(exposeHeaders)
 
         override def execute[T: Manifest](bean: Option[CommandBean]): Future[BaseCommandResponse[T]] = {
           Future.successful(AkkaHttpCommandResponse(None))
@@ -117,15 +116,12 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
     }
 
     "Reject requests with non matching origin" in {
-
-      val exposeHeaders = immutable.Seq(`Content-Type`.name, `X-Forwarded-For`.name)
-
       var routes = Set.empty[Route]
       new AkkaHttpGet with AkkaHttpCORS with TestBaseCommand {
         override def path: String = "test"
 
-        override def corsSettingsByPath(path: String): CorsSettings = CorsSettings.defaultSettings.copy(
-          allowedOrigins = HttpOriginRange(
+        override def corsSettingsByPath(path: String): CorsSettings = CorsSettings.defaultSettings.withAllowedOrigins(
+          HttpOriginMatcher(
             HttpOrigin("http://www.a.com"),
             HttpOrigin("http://www.b.com"),
             HttpOrigin("http://www.c.com")
