@@ -14,15 +14,6 @@ trait AkkaHttpCORS extends AkkaHttpBase {
 }
 
 object AkkaHttpCORS {
-  def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
-    CorsSettings.defaultSettings.allowGenericHttpRequests,
-    CorsSettings.defaultSettings.allowCredentials,
-    CorsSettings.defaultSettings.allowedOrigins,
-    CorsSettings.defaultSettings.allowedHeaders,
-    allowedMethods,
-    CorsSettings.defaultSettings.exposedHeaders,
-    CorsSettings.defaultSettings.maxAge
-  )
-
-
+  def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
+    CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
 }
