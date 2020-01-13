@@ -12,6 +12,7 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <akka.stream.version>2.5.26</akka.stream.version>
         <akka.http.version>10.1.11</akka.http.version>
         <wookiee.core.version>1.3.44</wookiee.core.version>
         <wookiee-metrics.version>2.5.16</wookiee-metrics.version>
@@ -93,6 +94,11 @@
             <artifactId>akka-http-spray-json_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-stream_${scala.artifact.version}</artifactId>
+            <version>${akka.stream.version}</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
