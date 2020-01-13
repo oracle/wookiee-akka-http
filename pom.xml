@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2014. Webtrends (https://www.webtrends.com)
+  ~ Copyright (c) 2020. Oracle
   ~ @author Spencer Wood
   -->
 <project xmlns="https://maven.apache.org/POM/4.0.0" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -12,9 +12,8 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <akka.stream.version>2.5.23</akka.stream.version>
-        <akka.http.version>10.1.1</akka.http.version>
-        <wookiee.core.version>1.3.41</wookiee.core.version>
+        <akka.http.version>10.1.11</akka.http.version>
+        <wookiee.core.version>1.3.44</wookiee.core.version>
         <wookiee-metrics.version>2.5.16</wookiee-metrics.version>
         <scala.version>2.11.12</scala.version>
         <scala.artifact.version>2.11</scala.artifact.version>
@@ -87,18 +86,13 @@
         <dependency>
             <groupId>ch.megard</groupId>
             <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
-            <version>0.2.2</version>
+            <version>0.4.2</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http-spray-json_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-stream_${scala.artifact.version}</artifactId>
-            <version>${akka.stream.version}</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
