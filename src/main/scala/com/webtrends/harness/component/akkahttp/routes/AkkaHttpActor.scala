@@ -92,13 +92,9 @@ trait AkkaHttpActor extends HActor with SimpleHttpClient {
   }
 
   override def checkHealth : Future[HealthComponent] = {
-    getPing(pingUrl).mapAll {
-      case Success(true) =>
-        HealthComponent(self.path.toString, ComponentState.NORMAL, s"Healthy: Ping to $pingUrl.")
-      case Success(false) =>
-        HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Failed to ping server at $pingUrl.")
-      case Failure(_) =>
-        HealthComponent(self.path.toString, ComponentState.CRITICAL, s"Unexpected error pinging server.")
-    }
+    // TODO Check that we can reach the service, needs to respect interface properly
+    Future.successful(
+      HealthComponent(self.path.toString, ComponentState.NORMAL, s"Healthy: Interface $pingUrl.")
+    )
   }
 }
