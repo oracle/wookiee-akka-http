@@ -58,7 +58,7 @@ case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
 case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
   extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
-trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog with LoggingAdapter{
+trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog with LoggingAdapter {
   this: BaseCommand =>
 
   // The AkkaHttpCORS trait is provided to enable CORS if desired
@@ -71,29 +71,36 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
   }
 
   val parseHeaders: Seq[HttpHeader] = {
-     val defaultHeaderConfig: Iterable[ConfigObject] = Try {
-       Harness.getActorSystem.get.settings.config.getObjectList("wookiee-akka-http.default-headers").asScala
-   }.getOrElse(List())
-     (for {
-       header: ConfigObject <- defaultHeaderConfig
-       entry: Entry[String, ConfigValue] <- header.entrySet().asScala
-       parsedHeader = HttpHeader.parse(entry.getKey, entry.getValue.unwrapped().toString) match {
-         case ParsingResult.Ok(header: HttpHeader, _) => header
-         case ParsingResult.Error(error) =>
-           throw new IllegalArgumentException(s"Error in configured header: ${error.summary}\nDetails:${error.detail}")
-       }
-     } yield parsedHeader).toSeq
+    val defaultHeaderConfig: Iterable[ConfigObject] = Try {
+      Harness.getActorSystem.get.settings.config.getObjectList("wookiee-akka-http.default-headers").asScala
+    }.getOrElse(List())
+    (for {
+      header: ConfigObject <- defaultHeaderConfig
+      entry: Entry[String, ConfigValue] <- header.entrySet().asScala
+      parsedHeader = HttpHeader.parse(entry.getKey, entry.getValue.unwrapped().toString) match {
+        case ParsingResult.Ok(header: HttpHeader, _) => header
+        case ParsingResult.Error(error) =>
+          throw new IllegalArgumentException(s"Error in configured header: ${error.summary}\nDetails:${error.detail}")
+      }
+    } yield parsedHeader).toSeq
   }
 
   def defaultHeaders: Seq[HttpHeader] = parseHeaders
+
   def createRoutes(): Unit = addRoute(commandOuterDirective)
+
   def addRoute(r: Route): Unit = ExternalAkkaHttpRouteContainer.addRoute(r)
 
   def httpPath: Directive1[AkkaHttpPathSegments] = p(path) & provide(new AkkaHttpPathSegments {})
+
   def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
+
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
+
   def method: HttpMethod = HttpMethods.GET
+
   def httpMethod(method: HttpMethod): Directive0 = AkkaHttpBase.httpMethod(method)
+
   def exceptionHandler[T <: AnyRef : Manifest]: ExceptionHandler = ExceptionHandler {
     case AkkaHttpException(msg, statusCode, headers, marsh) =>
       val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
@@ -114,6 +121,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
         res.copy(entity = HttpEntity.Strict(ContentTypes.`application/json`, ByteString(json)))
       case res => res
     }
+
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
@@ -133,16 +141,16 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
   protected def commandInnerDirective[T <: AnyRef : Manifest](url: String = path,
                                                               method: HttpMethod = method): Route = {
     httpPath { segments: AkkaHttpPathSegments =>
-      corsSupport(url) {
-        httpMethod(method) {
-          val inputBean = CommandBean(Map((AkkaHttpBase.Path, url),
-            (AkkaHttpBase.Segments, segments), (AkkaHttpBase.Method, method)))
-          handleRejections(rejectionHandler) {
-            handleExceptions(exceptionHandler[T]) {
-              httpParams { params: AkkaHttpParameters =>
-                parameterMap { paramMap: Map[String, String] =>
-                  httpAuth { auth: AkkaHttpAuth =>
-                    respondWithHeaders(defaultHeaders: _*) {
+      respondWithHeaders(defaultHeaders: _*) {
+        corsSupport(url) {
+          httpMethod(method) {
+            val inputBean = CommandBean(Map((AkkaHttpBase.Path, url),
+              (AkkaHttpBase.Segments, segments), (AkkaHttpBase.Method, method)))
+            handleRejections(rejectionHandler) {
+              handleExceptions(exceptionHandler[T]) {
+                httpParams { params: AkkaHttpParameters =>
+                  parameterMap { paramMap: Map[String, String] =>
+                    httpAuth { auth: AkkaHttpAuth =>
                       extractRequest { request =>
                         // Query params that can be marshalled to a case class via httpParams
                         val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
