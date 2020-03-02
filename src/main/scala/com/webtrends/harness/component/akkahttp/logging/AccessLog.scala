@@ -28,8 +28,12 @@ trait AccessLog  {
       val requestTimestamp: Long = bean.getValue[Long](TimeOfRequest).getOrElse(responseTimestamp)
       val elapsedTime: Long = responseTimestamp - requestTimestamp
       val requestTime: String = DateTime(requestTimestamp).toIsoDateTimeString()
+      val headers = request.headers
+      val origin = headers.find(header => header.name() == "Origin").map(_.value()).getOrElse("-")
+      val user_agent = headers.find(header => header.name() == "User-Agent").map(_.value()).getOrElse("-")
+
       /*
-          LogFormat "%h %l %u %t \"%r\" %>s %b %{ms}T"
+          LogFormat "%h %l %u %t \"%r\" %>s %b %{ms} %o %uaT"
 
           %h – The IP address of the server.
           %l – The identity of the client determined by identd on the client’s machine. Will return a hyphen (-) if this information is not available.
@@ -39,13 +43,14 @@ trait AccessLog  {
           %>s – The status code that the server sends back to the client.
           %b – The size of the object requested. Will return a hyphen (-) if this information is not available.
           %{ms}T - The time taken to serve the request, in milliseconds
+          %o - The Origin sent in request header. If the origin header not there, it returns hyphen (-).
+          %ua - The User Agent sent in request header. If user agent not there, returns hyphen (-).
+
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
 
-      val headers = request.headers
-      val origin = headers.find(header => header.name() == "Origin").map(_.value()).getOrElse("-")
-      val user_agent = headers.find(header => header.name() == "User-Agent").map(_.value()).getOrElse("-")
+
 
       accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime - $origin - $user_agent""")
 
