@@ -49,7 +49,6 @@ trait AccessLog  {
 
       accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime - $origin - $user_agent""")
 
-//      accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
     } catch {
       case e: Exception =>
         accessLog.error("Could not construct access log", e)
