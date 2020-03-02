@@ -42,7 +42,13 @@ trait AccessLog  {
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
-      accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime""")
+
+      val headers = request.headers
+      val origin = headers.find(header => header.name() == "Origin").map(_.value()).getOrElse("-")
+      val user_agent = headers.find(header => header.name() == "User-Agent").map(_.value()).getOrElse("-")
+
+      accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime - $origin - $user_agent""")
+
     } catch {
       case e: Exception =>
         accessLog.error("Could not construct access log", e)
