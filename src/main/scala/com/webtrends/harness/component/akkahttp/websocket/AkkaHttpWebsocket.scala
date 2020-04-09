@@ -14,17 +14,19 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
 import com.webtrends.harness.app.HActor
-import com.webtrends.harness.command.{Command, CommandBean}
+import com.webtrends.harness.command.{Command, MapBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
 import com.webtrends.harness.component.akkahttp.routes.WebsocketAkkaHttpRouteContainer
 import com.webtrends.harness.component.akkahttp.{AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpSettings}
 import com.webtrends.harness.component.metrics.metrictype.Counter
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 
-trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
+trait AkkaHttpWebsocket extends Command[MapBean, AkkaHttpCommandResponse[_]] with HActor with AkkaHttpBase {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   val settings = AkkaHttpSettings(config)
   val openSocketGauge = Counter(s"${AkkaHttpBase.AHMetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
@@ -32,12 +34,12 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   implicit def materializer = ActorMaterializer(None, None)(context)
   // Standard overrides
   // Can be implemented if text is desired to be streamed (must override isStreamingText = true)
-  def handleTextStream(ts: Source[String, _], bean: CommandBean, callback: ActorRef): Option[TextMessage] = {
+  def handleTextStream(ts: Source[String, _], bean: MapBean, callback: ActorRef): Option[TextMessage] = {
     throw new NotImplementedError("Must override isStreamingText and handleTextStream to handle streaming text.")
   }
 
   // Main handler for incoming messages
-  def handleText(text: String, bean: CommandBean, callback: ActorRef): Option[TextMessage]
+  def handleText(text: String, bean: MapBean, callback: ActorRef): Option[TextMessage]
 
   // Override if you want the TextMessage content to be left as a stream
   def isStreamingText: Boolean = false
@@ -47,17 +49,17 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   def keepAliveOn: Boolean = settings.ws.keepAliveOn
 
   // Override for websocket closure code, callback will be None if we aren't connected yet
-  def onWebsocketClose(bean: CommandBean, callback: Option[ActorRef]): Unit = {}
+  def onWebsocketClose(bean: MapBean, callback: Option[ActorRef]): Unit = {}
 
   // Override this to send to InternalAkkaHttpRouteContainer or External...Container if desired
   override def addRoute(r: Route): Unit = WebsocketAkkaHttpRouteContainer.addRoute(r)
 
   // End standard overrides
   // Props for output SocketActor
-  def callbackActor(bean: CommandBean): Props = Props(new SocketActor(bean))
+  def callbackActor(bean: MapBean): Props = Props(new SocketActor(bean))
 
   // This the the main method to route WS messages
-  protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
+  protected def webSocketService(bean: MapBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor(bean))
     val sink =
       Flow[Message].map {
@@ -115,17 +117,17 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   }
 
   // Overriding this so that extensions don't need to
-  override def execute[T](bean: Option[CommandBean])(implicit evidence$1: Manifest[T]) = {
+  override def execute(bean: MapBean): Future[AkkaHttpCommandResponse[_]] = {
     Future.successful(AkkaHttpCommandResponse(None))
   }
 
   override protected def getHealthChildren = List()
 
   // Directive to check out path for matches and extract params
-  protected def check: Directive1[CommandBean] = {
-    var bean: Option[CommandBean] = None
+  protected def check: Directive1[MapBean] = {
+    var bean: Option[MapBean] = None
     val filt = extractUri.filter({ uri =>
-      bean = Command.matchPath(path.toLowerCase, uri.path.toString().toLowerCase)
+      bean = matchPath(path.toLowerCase, uri.path.toString().toLowerCase)
       bean.isDefined
     })
     filt flatMap { _ =>
@@ -151,8 +153,8 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
   // Extractor to make sure our path matches, and extract URI params
   object PathCheck {
-    def unapply(test: Uri): Option[CommandBean] = {
-      Command.matchPath(test.path.toString(), path)
+    def unapply(test: Uri): Option[MapBean] = {
+      matchPath(test.path.toString(), path)
     }
   }
 
@@ -160,7 +162,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   case class Connect(actorRef: ActorRef, isStreamingText: Boolean) // Initial connection
 
   // Actor that exists per each open websocket and closes when the WS closes, also routes back return messages
-  class SocketActor(bean: CommandBean) extends Actor {
+  class SocketActor(bean: MapBean) extends Actor {
     private[websocket] var callbactor: Option[ActorRef] = None
 
     override def postStop() = {
@@ -187,10 +189,10 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
     // When becoming this, callbactor should already be set
     def open(isStreamingText: Boolean): Receive = {
-      case tmb: (TextMessage, CommandBean) if isStreamingText =>
+      case tmb: (TextMessage, MapBean) if isStreamingText =>
         val returnText = handleTextStream(tmb._1.textStream, tmb._2, callbactor.get)
         returnText.foreach(tx => callbactor.get ! tx)
-      case tmb: (TextMessage, CommandBean) =>
+      case tmb: (TextMessage, MapBean) =>
         val returnText = handleText(tmb._1.getStrictText, tmb._2, callbactor.get)
         returnText.foreach(tx => callbactor.get ! tx)
       case Terminated(actor) =>
@@ -205,4 +207,52 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   }
 
   log.info(s"Adding Websocket on path $path to routes")
+
+  /**
+   * Checks the match between a test path and url path
+   *
+   * @param commandPath The test path of the command, like /test/$var1/ping
+   * @param requestPath The uri requested, like /test/1/ping
+   * @return Will return a command bean if matched, None if not and in the command bean the
+   *         key var1 will equal 1 as per the example above
+   */
+  def matchPath(commandPath:String, requestPath:String) : Option[MapBean] = {
+
+    import com.webtrends.harness.utils.StringPathUtil._
+
+    val bean = MapBean(mutable.Map.empty[String, Any])
+    val urlPath = requestPath.splitPath()
+
+    val matched = urlPath.corresponds(commandPath.splitPath()) {
+      // Convert the segment into an Integer if possible, otherwise leave it as a String
+      case (uri, test) if test.head == '$' =>
+        val key = test.substring(1)
+        Try(uri.toInt) match {
+          case Success(v) => bean.addValue(key, v.asInstanceOf[Integer])
+          case Failure(_) => bean.addValue(key, uri)
+        }
+        true
+
+      // Treat the value as a string
+      case (uri, test) if test.head == '%' =>
+        bean.addValue(test.drop(1), uri)
+        true
+
+      // Only match if the value is an INT
+      case (uri, test) if test.head == '#' =>
+        Try(uri.toInt) match {
+          case Success(v) =>
+            bean.addValue(test.drop(1), v.asInstanceOf[Integer])
+            true
+          case Failure(_) =>
+            false
+        }
+
+      case (uri, test) =>
+        test.toLowerCase.split('|').contains(uri.toLowerCase)
+    }
+
+    if (matched) Some(bean)
+    else None
+  }
 }

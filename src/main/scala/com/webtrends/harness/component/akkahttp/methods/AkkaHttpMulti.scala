@@ -1,29 +1,24 @@
 package com.webtrends.harness.component.akkahttp.methods
 
-import akka.http.scaladsl.marshalling.ToResponseMarshaller
-import akka.http.scaladsl.model.StatusCodes.OK
-import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods, HttpResponse}
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean, CommandException}
+import com.webtrends.harness.command.{Command, CommandException, MapBean}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS._
 
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**
-  * Use this class to create a command that can handle any number of endpoints with any
-  * number of HTTP methods in a single class
-  */
-trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
+ * Use this class to create a command that can handle any number of endpoints with any
+ * number of HTTP methods in a single class
+ */
+trait AkkaHttpMulti extends AkkaHttpBase { this: Command[MapBean, AkkaHttpCommandResponse[_]] =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
@@ -43,7 +38,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // that was hit. So if we hit Endpoint("some/$var1/path", HttpMethods.GET) then the
   // values will be ("some/$var1/path", HttpMethods.GET). This method should match on
   // the endpoint that was hit and do some operation on it that returns an AkkaHttpCommandResponse.
-  def process(bean: CommandBean): PartialFunction[(String, HttpMethod), Future[BaseCommandResponse[_]]]
+  def process(bean: MapBean): PartialFunction[(String, HttpMethod), Future[AkkaHttpCommandResponse[_]]]
 
   // Method that is called for each endpoint object on addition, can override to do special logic
   def endpointExtraProcessing(end: Endpoint): Unit = {}
@@ -53,30 +48,30 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
 
   // Get the values present on the URI, input T type must be of type Holder# (e.g. Holder1)
   // where # is the number of variable segments on the URI
-  def getURIParams[T <: AkkaHttpPathSegments](bean: CommandBean): T = {
-    val segs = bean.get(AkkaHttpBase.Segments)
-    segs match {
-      case Some(s) =>
-        s match {
-          case t: T => t
-          case _ =>
-            throw new IllegalStateException(s"${s.getClass} is not a subclass of AkkaHttpPathSegments")
-        }
-      case None =>
-        throw new IllegalStateException(s"No URI Segments found for this request")
-    }
-  }
+  /*  def getURIParams[T <: AkkaHttpPathSegments](bean: MapBean): T = {
+      val segs = HttpUtil.getTypedValue[AkkaHttpPathSegments](bean, AkkaHttpBase.Segments)
+      segs match {
+        case Some(s) =>
+          s match {
+            case t: T => t
+            case _ =>
+              throw new IllegalStateException(s"${s.getClass} is not a subclass of AkkaHttpPathSegments")
+          }
+        case None =>
+          throw new IllegalStateException(s"No URI Segments found for this request")
+      }
+    }*/
 
   // Can grab the body with this
-  def getPayload[T](bean: CommandBean): Option[T] =
-    bean.getValue[T](CommandBean.KeyEntity)
+  def getPayload[T](bean: MapBean): Option[T] =
+    bean.getValue[T](AkkaHttpBase.KeyEntity)
 
   // Get params that were put on the end of the query (past the ?)
-  def getQueryParams(bean: CommandBean): Map[String, String] =
+  def getQueryParams(bean: MapBean): Map[String, String] =
     bean.getValue[Map[String, String]](AkkaHttpBase.QueryParams).getOrElse(Map.empty[String, String])
 
   // Return the value for the given header key
-  def getHeader(bean: CommandBean, name: String): Option[String] = {
+  def getHeader(bean: MapBean, name: String): Option[String] = {
     bean.getValue[Map[String, String]](AkkaHttpBase.RequestHeaders).flatMap { mp =>
       mp.get(name.toLowerCase)
     }
@@ -144,27 +139,26 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
           throw ex
       }
     }
+
+
+
   }
+
+
 
   // Overriding this and using to pull out method and path, saving end users from having to
   // know how to do that.
-  override def execute[T:Manifest](bean: Option[CommandBean]) : Future[BaseCommandResponse[T]] = {
-    bean match {
-      case Some(b) =>
-        val path = b.getValue[String](AkkaHttpBase.Path)
-        val method = b.getValue[HttpMethod](AkkaHttpBase.Method)
-        if (path.isDefined && method.isDefined) {
-          process(b)(path.get, method.get).map {
-            case cr: AkkaHttpCommandResponse[_] =>
-              cr.copy(data = cr.data.map(_.asInstanceOf[T]),
-                marshaller = cr.marshaller.map(_.asInstanceOf[ToResponseMarshaller[T]]))
-            case bcr: BaseCommandResponse[_] =>
-              AkkaHttpCommandResponse(bcr.data.map(_.asInstanceOf[T]))
-          }
-        } else Future.failed(CommandException(getClass.getSimpleName, "No path or method on matched endpoint."))
-      case None =>
-        Future.failed(CommandException(getClass.getSimpleName, "No bean on request, can't complete."))
-    }
+  override def execute(bean: MapBean) : Future[AkkaHttpCommandResponse[_]] = {
+
+    val path = bean.getValue[String](AkkaHttpBase.Path)
+    val method = bean.getValue[HttpMethod](AkkaHttpBase.Method)
+    if (path.isDefined && method.isDefined) {
+      process(bean)(path.get, method.get).map {
+        case cr: AkkaHttpCommandResponse[_] =>
+          cr
+      }
+    } else Future.failed(CommandException(getClass.getSimpleName, "No path or method on matched endpoint."))
+
   }
 
   // Is changed to get past having to pass arguments to httpPath
@@ -173,19 +167,17 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     ignoreTrailingSlash & currentPath
   }
 
-  // Overriding this so that child classes won't have to worry about it
-  override def path = ""
 
   // Used to set entity, won't need to override
   def maxSizeBytes: Long = 1.024e6.toLong
   // TODO Consider attempting to cast values to ints before placing onto bean as other frameworks did
-  override def beanDirective(bean: CommandBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = {
+  override def beanDirective(bean: MapBean, url: String = "", method: HttpMethod = HttpMethods.GET): Directive1[MapBean] = {
     // Grab all segments from the URI and put them directly on the bean
     val segs = bean.getValue[String](AkkaHttpBase.Path).getOrElse("").split("/").filter(_.startsWith("$"))
     def addIfPresent(index: Int, value: String): Unit = {
       if (index < segs.length) bean.addValue(segs(index).drop(1), value)
     }
-    bean.get(AkkaHttpBase.Segments).collect {
+    bean.map.get(AkkaHttpBase.Segments).collect {
       case prod: Product =>
         prod.productIterator.zipWithIndex.foreach {
           case (a, i) => addIfPresent(i, a.toString)
@@ -199,14 +191,17 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
     allPaths.find(e => url == e.path && method == e.method) match {
       case Some(CustomUnmarshallerEndpoint(p, m, um)) =>
         (withSizeLimit(maxSizeBytes) & entity(um)).flatMap { entity =>
-          bean.addValue(CommandBean.KeyEntity, entity)
+          println(s"entity -> $entity")
+          // bean.addValue(CommandBean.KeyEntity, entity)
           super.beanDirective(bean, url, method)
         }
       case Some(DefaultJsonEndpoint(p, m, ec)) =>
         val ev: Manifest[AnyRef] = Manifest.classType(ec)
         val unmarsh = AkkaHttpBase.unmarshaller[AnyRef](ev, fmt = formats)
         (withSizeLimit(maxSizeBytes) & entity(as[Option[AnyRef]](unmarsh))).flatMap { entity =>
-          entity.foreach(ent => bean.addValue(CommandBean.KeyEntity, ent))
+          entity.foreach(ent =>
+            println(s"entity -> $ent")
+          )
           super.beanDirective(bean, url, method)
         }
       case _ =>

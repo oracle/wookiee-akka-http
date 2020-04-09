@@ -1,3 +1,4 @@
+/*
 package com.webtrends.harness.component.akkahttp.client
 
 import akka.http.scaladsl.model._
@@ -283,3 +284,4 @@ class OAuthClientTest extends AsyncFlatSpec
     assert(config.getSchemaAndHost == "https://example.com:8080")
   }
 }
+*/

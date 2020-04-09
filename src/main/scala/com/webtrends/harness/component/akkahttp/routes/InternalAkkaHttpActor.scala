@@ -98,11 +98,11 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
         }
       } ~
         path("shutdown") {
-          Harness.shutdown
+          Harness.shutdown()
           complete(s"The system is being shutdown: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
         } ~
         path("restart") {
-          Harness.restartActorSystem
+          Harness.restartActorSystem()
           complete(s"The system is being restarted: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
         }
     }

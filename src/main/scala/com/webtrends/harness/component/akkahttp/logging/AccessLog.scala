@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.akkahttp.logging
 
 import akka.http.scaladsl.model.{DateTime, HttpRequest, StatusCode}
-import com.webtrends.harness.command.{BaseCommand, CommandBean}
+import com.webtrends.harness.command.{BaseCommand, MapBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.TimeOfRequest
 import com.webtrends.harness.component.akkahttp.logging.AccessLog._
 import com.webtrends.harness.logging.Logger
@@ -14,11 +14,11 @@ trait AccessLog  {
   // Override to obtain the id
   // id is no longer limited to user, with oauth or other authentication/authorization there are other ids to consider.
   // Like client id.
-  def getAccessLogId(bean: CommandBean): Option[String] = {
+  def getAccessLogId(bean: MapBean): Option[String] = {
     None
   }
 
-  def logAccess(request: HttpRequest, bean: CommandBean, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
+  def logAccess(request: HttpRequest, bean: MapBean, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
 
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     try {

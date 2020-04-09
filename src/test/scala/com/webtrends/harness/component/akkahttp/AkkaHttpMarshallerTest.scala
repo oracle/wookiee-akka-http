@@ -1,3 +1,4 @@
+/*
 package com.webtrends.harness.component.akkahttp
 
 import akka.http.scaladsl.marshalling.{Marshaller, ToResponseMarshaller}
@@ -145,3 +146,4 @@ class AkkaHttpMarshallerTest extends FunSuite
     }
   }
 }
+*/

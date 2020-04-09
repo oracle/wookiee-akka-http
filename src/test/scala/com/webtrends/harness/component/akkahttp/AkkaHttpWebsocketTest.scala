@@ -1,3 +1,4 @@
+/*
 package com.webtrends.harness.component.akkahttp
 
 import java.io.{BufferedReader, ByteArrayInputStream, InputStreamReader}
@@ -368,3 +369,4 @@ class AkkaHttpWebsocketTest extends WordSpecLike
       }
   }
 }
+*/
