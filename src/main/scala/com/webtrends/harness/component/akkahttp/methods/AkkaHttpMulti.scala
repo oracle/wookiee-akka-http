@@ -1,6 +1,6 @@
 package com.webtrends.harness.component.akkahttp.methods
 
-import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.model.{HttpHeader, HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
@@ -215,6 +215,8 @@ sealed trait Endpoint {
   val path: String
   val method: HttpMethod
 }
+
+case class EndpointConfig(path: String, method: HttpMethod, defaultHeaders: Seq[HttpHeader], enableCors: Boolean) extends Endpoint
 
 object Endpoint {
   // Use for endpoints with no request entity

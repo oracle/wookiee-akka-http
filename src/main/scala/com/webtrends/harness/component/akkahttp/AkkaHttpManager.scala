@@ -7,14 +7,20 @@ package com.webtrends.harness.component.akkahttp
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorRef
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.settings.ServerSettings
 import com.typesafe.config.Config
+import com.webtrends.harness.command.{Bean, Command}
 import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
+import com.webtrends.harness.component.akkahttp.methods.EndpointConfig
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, ExternalAkkaHttpRouteContainer, InternalAkkaHttpActor, RouteGenerator, WebsocketAkkaHttpActor}
+import com.webtrends.harness.logging.Logger
 import com.webtrends.harness.utils.ConfigUtil
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.reflect.ClassTag
 import scala.util.Try
 
 case class AkkaHttpMessage()
@@ -29,6 +35,18 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   var internalAkkaHttpRef: Option[ActorRef] = None
   var externalAkkaHttpRef: Option[ActorRef] = None
   var wsAkkaHttpRef: Option[ActorRef] = None
+  implicit val logger: Logger = log
+
+  def addExternalCommand[U <: Product: ClassTag, V: ClassTag](id: String,
+                                                          customUnmarshaller: Bean => U,
+                                                          businessLogic: U => Future[V],
+                                                          customMarshaller: V => Array[Byte],
+                                                          endpointConfig: EndpointConfig)(implicit ec: ExecutionContext): Unit = {
+    // TODO: Split based off of type of endpoint type [External|Internal|WS]
+    addCommand(id, customUnmarshaller, businessLogic, customMarshaller)
+        .map(ref => ExternalAkkaHttpRouteContainer.addRoute(RouteGenerator.makeRoute(ref, endpointConfig)))
+  }
+
 
   def startAkkaHttp(): Unit = {
     starMonitor.synchronized {
