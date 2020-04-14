@@ -3,11 +3,11 @@ package com.webtrends.harness.component.akkahttp.routes
 import akka.actor.ActorRef
 import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue
 import akka.http.scaladsl.marshalling.{ToEntityMarshaller, ToResponseMarshaller}
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethod, HttpMethods, HttpRequest, HttpResponse, StatusCode, StatusCodes}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.StatusCodes.{InternalServerError, NoContent, OK}
-import akka.http.scaladsl.server.Directives.{complete, completeWith, extractRequest, handleExceptions, handleRejections, onComplete, parameterMap, pass, respondWithHeaders}
+import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
-import akka.http.scaladsl.server.{Directive0, Directive1, ExceptionHandler, RejectionHandler, Route, StandardRoute}
 import akka.pattern.ask
 import akka.util.{ByteString, Timeout}
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
@@ -16,7 +16,7 @@ import com.webtrends.harness.command.{Bean, ExecuteCommand, MapBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.{Auth, Params, QueryParams, RequestHeaders, TimeOfRequest, entityMarshaller, serialization}
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp.methods.EndpointConfig
-import com.webtrends.harness.component.akkahttp.{AkkaHttpAuth, AkkaHttpBase, AkkaHttpCommandResponse, AkkaHttpException, AkkaHttpParameters, AkkaHttpPathSegments, AkkaHttpRejection}
+import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.logging.Logger
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats}
@@ -27,29 +27,33 @@ import scala.util.{Failure, Success}
 object RouteGenerator {
   private val defaultRouteFormats: Formats = DefaultFormats ++ JodaTimeSerializers.all
 
-  def makeRoute(commandRef: ActorRef, endpoint: EndpointConfig)(implicit log: Logger, timeout: Timeout): Route =
-    commandInnerDirective(
-      commandRef,
-      parseRouteSegments(endpoint.path),
-      endpoint.path,
-      endpoint.method,
-      endpoint.defaultHeaders,
-      endpoint.enableCors)
-
-  protected[routes] def parseRouteSegments(path: String): Directive1[AkkaHttpPathSegments] = {
-    ??? // Waiting on Krishna's implementation
-  }
+//  def makeRoute(commandRef: ActorRef, customMarshaller: endpoint: EndpointConfig)(implicit log: Logger, timeout: Timeout): Route =
+//    commandInnerDirective(
+//      commandRef,
+//      parseRouteSegments(endpoint.path),
+//      endpoint.path,
+//      endpoint.method,
+//      endpoint.defaultHeaders,
+//      endpoint.enableCors)
 
   // TODO: marshaller/unmarshaller largely handled inside commandRef now, what's still needed?
-  protected[routes] def commandInnerDirective[T <: AnyRef : Manifest](
+  def makeRoute[T <: AnyRef : Manifest, U](
                                                      commandRef: ActorRef,
-                                                     httpPath: Directive1[AkkaHttpPathSegments],
-                                                     url: String,
-                                                     method: HttpMethod,
-                                                     defaultHeaders: Seq[HttpHeader],
-                                                     enableCors: Boolean
+                                                     endpoint: EndpointConfig,
+                                                     customMarshaller: U => Array[Byte],
                                                    )(implicit log: Logger, timeout: Timeout): Route = {
+    val url = endpoint.path
+    val httpPath = parseRouteSegments(url)
+    val method = endpoint.method
+    val defaultHeaders = endpoint.defaultHeaders
+    val enableCors = endpoint.enableCors
 
+    // TODO: first, figure out how you can get execute to return an AkkaHttpResponse
+    // Then marshal the result using customMarshaller
+
+    // TODO: then, work out where authorization plays into all of this
+
+    // TODO: 
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
         corsSupport(method, enableCors) {
@@ -119,6 +123,56 @@ object RouteGenerator {
           }
         }
       }
+    }
+  }
+
+  protected[routes] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
+    val segs = path.split("/").filter(_.nonEmpty).toSeq
+    var segCount = 0
+    try {
+      val dir = segs.tail.foldLeft(segs.head.asInstanceOf[Any]) { (x, y) =>
+        y match {
+          case s1: String if s1.startsWith("$") =>
+            segCount += 1
+            (x match {
+              case pStr: String => if (pStr.startsWith("$")) {
+                segCount += 1
+                Segment / Segment
+              } else pStr / Segment
+              case pMatch: PathMatcher[Unit] if segCount == 1 => pMatch / Segment
+              case pMatch: PathMatcher[Tuple1[String]] if segCount == 2 => pMatch / Segment
+              case pMatch: PathMatcher[(String, String)] if segCount == 3 => pMatch / Segment
+              case pMatch: PathMatcher[(String, String, String)] if segCount == 4 => pMatch / Segment
+              case pMatch: PathMatcher[(String, String, String, String)] if segCount == 5 => pMatch / Segment
+              case pMatch: PathMatcher[(String, String, String, String, String)] if segCount == 6 => pMatch / Segment
+
+            }).asInstanceOf[PathMatcher[_]]
+          case s1: String =>
+            (x match {
+              case pStr: String => if (pStr.startsWith("$")) {
+                segCount += 1
+                Segment / s1
+              } else pStr / s1
+              case pMatch: PathMatcher[_] => pMatch / s1
+            }).asInstanceOf[PathMatcher[_]]
+        }
+      }
+
+      // Create holders for any arguments on the query path
+      segCount match {
+        case 0 if segs.size == 1 => p(path) & provide(new AkkaHttpPathSegments {})
+        case 0 => p(dir.asInstanceOf[PathMatcher[Unit]]) & provide(new AkkaHttpPathSegments {})
+        case 1 => p(dir.asInstanceOf[PathMatcher[Tuple1[String]]]).as(Holder1)
+        case 2 => p(dir.asInstanceOf[PathMatcher[(String, String)]]).as(Holder2)
+        case 3 => p(dir.asInstanceOf[PathMatcher[(String, String, String)]]).as(Holder3)
+        case 4 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String)]]).as(Holder4)
+        case 5 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String)]]).as(Holder5)
+        case 6 => p(dir.asInstanceOf[PathMatcher[(String, String, String, String, String, String)]]).as(Holder6)
+      }
+    } catch {
+      case ex: Throwable =>
+        log.error(s"Error adding path ${path}", ex)
+        throw ex
     }
   }
 

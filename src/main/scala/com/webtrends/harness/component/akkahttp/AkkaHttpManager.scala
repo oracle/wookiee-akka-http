@@ -42,9 +42,10 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
                                                           businessLogic: U => Future[V],
                                                           customMarshaller: V => Array[Byte],
                                                           endpointConfig: EndpointConfig)(implicit ec: ExecutionContext): Unit = {
+
     // TODO: Split based off of type of endpoint type [External|Internal|WS]
-    addCommand(id, customUnmarshaller, businessLogic, customMarshaller)
-        .map(ref => ExternalAkkaHttpRouteContainer.addRoute(RouteGenerator.makeRoute(ref, endpointConfig)))
+    addCommand(id, customUnmarshaller, businessLogic)
+        .map(ref => ExternalAkkaHttpRouteContainer.addRoute(RouteGenerator.makeRoute(ref, endpointConfig, customMarshaller)))
   }
 
 
