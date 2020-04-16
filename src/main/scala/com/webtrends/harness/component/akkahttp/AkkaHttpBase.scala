@@ -34,8 +34,6 @@ import scala.collection.JavaConverters._
 import scala.collection.{immutable, mutable}
 import scala.util.{Failure, Success, Try}
 
-case class AkkaHttpResponse[T](data: Option[T], statusCode: StatusCode, headers: Seq[HttpHeader] = List())
-
 case class AkkaHttpCommandResponse[T](data: Option[T],
                                       marshaller: Option[ToResponseMarshaller[T]] = None,
                                       statusCode: Option[StatusCode] = None,
