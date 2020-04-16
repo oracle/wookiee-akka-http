@@ -28,7 +28,13 @@ trait AkkaHttpEndpointRegistration {
                                                                responseHandler: PartialFunction[Any, Route],
                                                               )(implicit ec: ExecutionContext, log: Logger, to: Timeout): Unit = {
 
-      addCommand(path, businessLogic).map { ref =>
+    /*
+    Command registration  is failing is path contains '/ $'.  Slash or $ character is not allowed in actor name.
+    path variable is taking as actor name while registering the command
+     */
+    val commandName = path.replaceAll("[/$]", "") // to be modified
+
+      addCommand(commandName, businessLogic).map { ref =>
         val route = RouteGenerator.makeRoute(path, method, defaultHeaders, enableCors, ref, requestHandler, responseHandler)
 
         endpointType match {

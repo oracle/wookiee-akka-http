@@ -9,12 +9,13 @@ import akka.pattern.ask
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
-import com.webtrends.harness.command.ExecuteCommand
+import com.webtrends.harness.command.{ExecuteCommand, MapBean}
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.logging.Logger
 
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
 
 case class AkkaHttpResponse[T](data: Option[T], statusCode: Option[StatusCode], headers: Seq[HttpHeader] = List())
@@ -38,7 +39,7 @@ object RouteGenerator {
   // and Try for the businessLogic directive
   // TODO: verify what it looks like to handle a 403 unauthorized exception that can occur from either request handler OR the businessLogic method
   // TODO: Add a default 500 exception handler to run if the consumer's responseHandler does not apply to result of either requesthandler or businessLogic
-  def makeRoute[T](path: String,
+  def makeRoute[T <: Product : ClassTag, V](path: String,
                       method: HttpMethod,
                       defaultHeaders: Seq[HttpHeader],
                       enableCors: Boolean,
@@ -63,9 +64,9 @@ object RouteGenerator {
                       case Right(requestInfo) =>
                         onComplete(commandRef ? ExecuteCommand("", requestInfo, timeout)) {
                           // TODO: non-happy path
-                          case Success(resp: T) =>
+                          case Success(resp: V) =>
                             responseHandler(resp)
-                          case Failure(f: T) =>
+                          case Failure(f: V) =>
                             log.info("business logic failed")
                             complete("response failed")
                         }

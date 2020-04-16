@@ -6,6 +6,7 @@
         <scala.version>2.12.10</scala.version>
         <scala.artifact.version>2.12</scala.artifact.version>
         <akka.http.version>10.1.1</akka.http.version>
+        <akka.stream.version>2.5.23</akka.stream.version>
     </properties>
 
     <name>Akka Http Example Wookiee Service</name>
@@ -23,7 +24,7 @@
     <artifactId>akka-http-service</artifactId>
     <version>1.0-SNAPSHOT</version>
 
-    <!--<parent>
+   <!-- <parent>
         <groupId>com.webtrends</groupId>
         <artifactId>wookiee-akka-http_2.12</artifactId>
         <version>2.0-SNAPSHOT</version>
@@ -64,6 +65,88 @@
             <artifactId>akka-http_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
         </dependency>
+        <dependency>
+            <groupId>de.heikoseeberger</groupId>
+            <artifactId>akka-http-json4s_${scala.artifact.version}</artifactId>
+            <version>1.15.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json4s</groupId>
+            <artifactId>json4s-jackson_${scala.artifact.version}</artifactId>
+            <version>3.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json4s</groupId>
+            <artifactId>json4s-ext_${scala.artifact.version}</artifactId>
+            <version>3.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.megard</groupId>
+            <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
+            <version>0.2.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-http-spray-json_${scala.artifact.version}</artifactId>
+            <version>${akka.http.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-stream_${scala.artifact.version}</artifactId>
+            <version>${akka.stream.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-http-testkit_${scala.artifact.version}</artifactId>
+            <version>${akka.http.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-actor_${scala.artifact.version}</artifactId>
+            <version>2.5.23</version>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-stream-testkit_${scala.artifact.version}</artifactId>
+            <version>${akka.stream.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.scalacheck</groupId>
+            <artifactId>scalacheck_${scala.artifact.version}</artifactId>
+            <version>1.13.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.webtrends</groupId>
+            <artifactId>wookiee-metrics_${scala.artifact.version}</artifactId>
+            <version>2.5.16</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.scalatest</groupId>
+                    <artifactId>scalatest_${scala.version}</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.0-alpha1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.0-alpha1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-remote_${scala.artifact.version}</artifactId>
+            <version>2.5.23</version>
+        </dependency>
+
     </dependencies>
 
     <build>

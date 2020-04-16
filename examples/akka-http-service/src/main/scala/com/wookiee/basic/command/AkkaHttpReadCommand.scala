@@ -1,6 +1,6 @@
 package com.wookiee.basic.command
 
-import akka.http.javadsl.model.{HttpMethod, HttpMethods}
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import com.webtrends.harness.command.{Command, MapBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpCommandResponse
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
