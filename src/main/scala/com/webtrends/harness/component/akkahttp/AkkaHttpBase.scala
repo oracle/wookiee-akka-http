@@ -21,10 +21,8 @@ import com.typesafe.config.{ConfigObject, ConfigValue}
 import com.webtrends.harness.app.Harness
 import com.webtrends.harness.command.{Bean, Command, MapBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase._
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
-import com.webtrends.harness.component.akkahttp.methods.{CustomUnmarshallerEndpoint, DefaultJsonEndpoint, Endpoint}
-import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpAuth, AkkaHttpParameters, AkkaHttpPathSegments, Endpoint, ExternalAkkaHttpRouteContainer, RouteGenerator}
 import com.webtrends.harness.logging.LoggingAdapter
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
@@ -45,20 +43,6 @@ case class AkkaHttpException[T](entity: T,
                                 statusCode: StatusCode = InternalServerError,
                                 headers: immutable.Seq[HttpHeader] = immutable.Seq.empty,
                                 marshaller: Option[ToEntityMarshaller[T]] = None) extends Throwable(entity.toString)
-trait AkkaHttpParameters
-trait AkkaHttpPathSegments
-trait AkkaHttpAuth
-
-// Use these to generically extract values from a query string
-case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
-case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
-case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
-case class Holder4(_1: String, _2: String, _3: String, _4: String)
-  extends Product4[String, String, String, String] with AkkaHttpPathSegments
-case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
-  extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
-case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
-  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
 trait AkkaHttpBase extends  PathDirectives with MethodDirectives with AccessLog with LoggingAdapter {
   this: Command[MapBean, AkkaHttpCommandResponse[_]] =>
@@ -73,7 +57,7 @@ trait AkkaHttpBase extends  PathDirectives with MethodDirectives with AccessLog 
   // Allows setting custom CORS settings by endpoint.
   // Default behavior allows all origins, allows credentials, and allows all methods defined in this Command for the path
   protected def corsSettingsByPath(path: String): CorsSettings = {
-    AkkaHttpCORS.corsSettings(immutable.Seq(method))
+    RouteGenerator.corsSettings(immutable.Seq(method))
   }
 
   val parseHeaders: Seq[HttpHeader] = {
@@ -167,7 +151,7 @@ trait AkkaHttpBase extends  PathDirectives with MethodDirectives with AccessLog 
                             case Success(akkaResp: AkkaHttpCommandResponse[T]) =>
                               val codeResp = akkaResp.copy(statusCode = Some(defaultCodes(outputBean, akkaResp)))
                               val finalResp = beforeReturn(outputBean, codeResp)
-                              logAccess(request, outputBean, finalResp.statusCode)
+                              //logAccess(request, outputBean, finalResp.statusCode)
                               respondWithHeaders(finalResp.headers: _*) {
                                 finalResp match {
                                   case AkkaHttpCommandResponse(Some(route: StandardRoute), _, _, _) =>
@@ -189,7 +173,7 @@ trait AkkaHttpBase extends  PathDirectives with MethodDirectives with AccessLog 
                               }
                             case Success(unknownResponse) =>
                               log.error(s"Got unknown response $unknownResponse")
-                              logAccess(request, outputBean, Some(InternalServerError))
+                             // logAccess(request, outputBean, Some(InternalServerError))
                               complete(InternalServerError)
                             case Failure(f) =>
                               val akkaEx = beforeFailedReturn[T](f match {
@@ -198,7 +182,7 @@ trait AkkaHttpBase extends  PathDirectives with MethodDirectives with AccessLog 
                                   log.error(s"Command failed with $ex")
                                   AkkaHttpException[T](ex.getMessage.asInstanceOf[T], InternalServerError)
                               }) // Put all other errors into AkkaHttpException then call our beforeFailedReturn method
-                              logAccess(request, outputBean, Some(akkaEx.statusCode))
+                              //logAccess(request, outputBean, Some(akkaEx.statusCode))
                               akkaEx match {
                                 case AkkaHttpException(msg, statusCode, headers, None) =>
                                   val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =

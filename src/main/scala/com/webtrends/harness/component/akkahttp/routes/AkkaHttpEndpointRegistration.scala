@@ -49,3 +49,4 @@ trait AkkaHttpEndpointRegistration {
       }
     }
 }
+

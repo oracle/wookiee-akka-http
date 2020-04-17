@@ -2,21 +2,36 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.pattern.ask
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
-import com.webtrends.harness.command.{ExecuteCommand, MapBean}
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import com.webtrends.harness.component.akkahttp._
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.logging.Logger
 
-import scala.collection.{immutable, mutable}
+import scala.collection.immutable
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
+
+
+trait AkkaHttpParameters
+trait AkkaHttpPathSegments
+trait AkkaHttpAuth
+
+// Use these to generically extract values from a query string
+case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
+case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
+case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
+case class Holder4(_1: String, _2: String, _3: String, _4: String)
+  extends Product4[String, String, String, String] with AkkaHttpPathSegments
+case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
+  extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
+  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
 case class AkkaHttpResponse[T](data: Option[T], statusCode: Option[StatusCode], headers: Seq[HttpHeader] = List())
 case class AkkaHttpRequest(
@@ -27,7 +42,8 @@ case class AkkaHttpRequest(
                             params: AkkaHttpParameters,
                             auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
-                            time: Long
+                            time: Long,
+                            requestBody:Option[RequestEntity] = None
                           )
 
 // TODO: potential state for frequent default handlers esp: regarding rejection/exception handlers
@@ -51,14 +67,15 @@ object RouteGenerator {
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
         corsSupport(method, enableCors) {
-          AkkaHttpBase.httpMethod(method) {
+          httpMethod(method) {
             // TODO: handleRejections and handleExceptions more part of marshaller, still here or only in marshaller now?
             httpParams { params: AkkaHttpParameters =>
               parameterMap { paramMap: Map[String, String] =>
                 httpAuth { auth: AkkaHttpAuth =>
                   extractRequest { request =>
                     val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis())
+                    val httpEntity =  getPayload(method, request)
+                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis(), httpEntity)
                     // http request handlers should be built with authorization in mind.
                     requestHandler(notABean) match {
                       case Right(requestInfo) =>
@@ -66,13 +83,13 @@ object RouteGenerator {
                           // TODO: non-happy path
                           case Success(resp: V) =>
                             responseHandler(resp)
-                          case Failure(f: V) =>
-                            log.info("business logic failed")
-                            complete("response failed")
+                          case Failure(ex: Throwable) =>
+                            log.info("business logic failed", ex.getMessage)
+                            complete(StatusCodes.InternalServerError, "error in handling business logic")
                         }
                       case Left(ex) =>
-                        log.info("request failed")
-                        complete("request failed")
+                        log.info("request failed", ex.getMessage)
+                        complete(StatusCodes.InternalServerError, "error in handling the request")
                     }
                   }
                 }
@@ -136,7 +153,7 @@ object RouteGenerator {
 
   private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
     if (enableCors) {
-      handleRejections(corsRejectionHandler) & CorsDirectives.cors(AkkaHttpCORS.corsSettings(immutable.Seq(method)))
+      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
     } else {
       pass
     }
@@ -147,4 +164,28 @@ object RouteGenerator {
 
   // TODO: is this method actually overriden anywhere? Is it needed?
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
+
+  def httpMethod(method: HttpMethod): Directive0 = method match {
+    case HttpMethods.GET => get
+    case HttpMethods.PUT => put
+    case HttpMethods.POST => post
+    case HttpMethods.DELETE => delete
+    case HttpMethods.OPTIONS => options
+    case HttpMethods.PATCH => patch
+  }
+
+  def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
+    case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
+    case _ => None
+  }
+
+  def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
+    CorsSettings.defaultSettings.allowGenericHttpRequests,
+    CorsSettings.defaultSettings.allowCredentials,
+    CorsSettings.defaultSettings.allowedOrigins,
+    CorsSettings.defaultSettings.allowedHeaders,
+    allowedMethods,
+    CorsSettings.defaultSettings.exposedHeaders,
+    CorsSettings.defaultSettings.maxAge
+  )
 }

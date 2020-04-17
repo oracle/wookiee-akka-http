@@ -1,9 +1,9 @@
 package com.webtrends.harness.component.akkahttp.logging
 
 import akka.http.scaladsl.model.{DateTime, HttpRequest, StatusCode}
-import com.webtrends.harness.command.{BaseCommand, MapBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase.TimeOfRequest
+import com.webtrends.harness.command.BaseCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog._
+import com.webtrends.harness.component.akkahttp.routes.AkkaHttpRequest
 import com.webtrends.harness.logging.Logger
 
 trait AccessLog  {
@@ -14,18 +14,18 @@ trait AccessLog  {
   // Override to obtain the id
   // id is no longer limited to user, with oauth or other authentication/authorization there are other ids to consider.
   // Like client id.
-  def getAccessLogId(bean: MapBean): Option[String] = {
+  def getAccessLogId(akkaHttpRequest: AkkaHttpRequest): Option[String] = {
     None
   }
 
-  def logAccess(request: HttpRequest, bean: MapBean, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
+  def logAccess(request: HttpRequest, akkaHttpRequest: AkkaHttpRequest, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
 
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     try {
-      val id: String = getAccessLogId(bean).getOrElse("-")
+      val id: String = getAccessLogId(akkaHttpRequest).getOrElse("-")
       val status: String = statusCode.map(sc => sc.intValue.toString).getOrElse("-")
       val responseTimestamp: Long = System.currentTimeMillis()
-      val requestTimestamp: Long = bean.getValue[Long](TimeOfRequest).getOrElse(responseTimestamp)
+      val requestTimestamp: Long = akkaHttpRequest.time
       val elapsedTime: Long = responseTimestamp - requestTimestamp
       val requestTime: String = DateTime(requestTimestamp).toIsoDateTimeString()
       val headers = request.headers
