@@ -5,7 +5,9 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.pattern.ask
+import akka.stream.Materializer
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
@@ -14,6 +16,7 @@ import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.logging.Logger
 
 import scala.collection.immutable
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
 
@@ -46,22 +49,16 @@ case class AkkaHttpRequest(
                             requestBody:Option[RequestEntity] = None
                           )
 
-// TODO: potential state for frequent default handlers esp: regarding rejection/exception handlers
 object RouteGenerator {
-
-  // TODO: implement simple endpoint using as is, verify happy path
-  // TODO: Identify common pattern for 204s, most likely just a business logic that returns Unit, that is handled by consumer's responseHandler
-  // TODO: Probably move towards EitherT, or just revert to using Trys on the handlers. Feels weird having Either for requestHandler
-  // and Try for the businessLogic directive
-  // TODO: verify what it looks like to handle a 403 unauthorized exception that can occur from either request handler OR the businessLogic method
-  // TODO: Add a default 500 exception handler to run if the consumer's responseHandler does not apply to result of either requesthandler or businessLogic
+  // TODO: Add new rejection/exceptionHandler to recover with as new parameter
+  // TODO: Verify catch all 500 match works
   def makeRoute[T <: Product : ClassTag, V](path: String,
                       method: HttpMethod,
                       defaultHeaders: Seq[HttpHeader],
                       enableCors: Boolean,
                       commandRef: ActorRef,
-                      requestHandler: AkkaHttpRequest => Either[Throwable, T],
-                      responseHandler: PartialFunction[Any, Route])(implicit log: Logger, timeout: Timeout): Route = {
+                      requestHandler: AkkaHttpRequest => Future[T],
+                      responseHandler: V => Route)(implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
@@ -77,19 +74,20 @@ object RouteGenerator {
                     val httpEntity =  getPayload(method, request)
                     val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis(), httpEntity)
                     // http request handlers should be built with authorization in mind.
-                    requestHandler(notABean) match {
-                      case Right(requestInfo) =>
-                        onComplete(commandRef ? ExecuteCommand("", requestInfo, timeout)) {
-                          // TODO: non-happy path
-                          case Success(resp: V) =>
-                            responseHandler(resp)
-                          case Failure(ex: Throwable) =>
-                            log.info("business logic failed", ex.getMessage)
-                            complete(StatusCodes.InternalServerError, "error in handling business logic")
-                        }
-                      case Left(ex) =>
-                        log.info("request failed", ex.getMessage)
-                        complete(StatusCodes.InternalServerError, "error in handling the request")
+                    onComplete(for {
+                      requestObjs <- requestHandler(notABean)
+                      commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
+                    } yield responseHandler(commandResult.asInstanceOf[V])) {
+                      case Success(route: Route) =>
+                        route
+                      case Failure(ex: Throwable) =>
+                        val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                          .getOrElse(ex.getClass.getSimpleName)
+                        log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+                        complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                      case other =>
+                        log.warn(s"$other")
+                        complete(StatusCodes.InternalServerError, "Hit nothing")
                     }
                   }
                 }
@@ -188,4 +186,10 @@ object RouteGenerator {
     CorsSettings.defaultSettings.exposedHeaders,
     CorsSettings.defaultSettings.maxAge
   )
+
+  def entityToString(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[String] =
+    Unmarshaller.stringUnmarshaller(req)
+
+  def entityToBytes(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[Array[Byte]] =
+    Unmarshaller.byteArrayUnmarshaller(req)
 }
