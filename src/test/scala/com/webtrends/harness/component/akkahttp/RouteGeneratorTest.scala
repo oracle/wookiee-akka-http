@@ -5,7 +5,7 @@ import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.{HttpMethods, _}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, RouteGenerator}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, AkkaHttpResponse, RouteGenerator}
 import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
 import akka.http.scaladsl.server.Directives.complete
@@ -24,10 +24,9 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
     def requestHandler = (req: AkkaHttpRequest) => Right(req)
     def actorRef = actorSystem.actorOf(SimpleCommandActor())
-    def responseHandler: PartialFunction[Any, Route] = {case (resp: AkkaHttpRequest) => complete(resp.toString) }
+    def responseHandler: PartialFunction[Any, Route] = {case (resp: AkkaHttpResponse[AkkaHttpRequest]) => complete(resp.toString) }
 
     "add simple route" in {
-//      def responseHandler: PartialFunction[Any, Route] = {case (resp: AkkaHttpRequest) => complete(resp.toString) }
       val r = RouteGenerator.makeRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler)
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)

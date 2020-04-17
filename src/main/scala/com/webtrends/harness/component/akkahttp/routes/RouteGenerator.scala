@@ -27,7 +27,8 @@ case class AkkaHttpRequest(
                             params: AkkaHttpParameters,
                             auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
-                            time: Long
+                            time: Long,
+                            requestBody: Option[RequestEntity] = None
                           )
 
 // TODO: potential state for frequent default handlers esp: regarding rejection/exception handlers
@@ -58,7 +59,8 @@ object RouteGenerator {
                 httpAuth { auth: AkkaHttpAuth =>
                   extractRequest { request =>
                     val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis())
+                    val httpEntity =  getPayload(method, request)
+                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis(), httpEntity)
                     // http request handlers should be built with authorization in mind.
                     requestHandler(notABean) match {
                       case Right(requestInfo) =>
@@ -132,6 +134,11 @@ object RouteGenerator {
         log.error(s"Error adding path ${path}", ex)
         throw ex
     }
+  }
+
+  def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
+    case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
+    case _ => None
   }
 
   private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
