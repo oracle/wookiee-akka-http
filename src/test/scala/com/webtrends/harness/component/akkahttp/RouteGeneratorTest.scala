@@ -5,12 +5,12 @@ import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.{HttpMethods, _}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, AkkaHttpResponse, RouteGenerator}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, RouteGenerator}
 import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
 import akka.http.scaladsl.server.Directives.complete
-import akka.http.scaladsl.server.Route
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with PredefinedToEntityMarshallers {
@@ -22,9 +22,9 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
   "RouteGenerator " should {
 
-    def requestHandler = (req: AkkaHttpRequest) => Right(req)
+    def requestHandler = (req: AkkaHttpRequest) => Future.successful(req)
     def actorRef = actorSystem.actorOf(SimpleCommandActor())
-    def responseHandler: PartialFunction[Any, Route] = {case (resp: AkkaHttpResponse[AkkaHttpRequest]) => complete(resp.toString) }
+    def responseHandler = (resp: AkkaHttpRequest) => complete(resp.toString)
 
     "add simple route" in {
       val r = RouteGenerator.makeRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler)
@@ -56,6 +56,4 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       }
     }
   }
-
-
 }

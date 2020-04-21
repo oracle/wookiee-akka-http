@@ -1,19 +1,17 @@
 package com.wookiee.basic
 
-import akka.http.scaladsl.marshalling.PredefinedToResponseMarshallers.fromStatusCodeAndHeadersAndValue
-import akka.http.scaladsl.marshalling.ToResponseMarshaller
-import akka.http.scaladsl.model.{HttpHeader, HttpMethods, StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, completeWith}
+import akka.actor.ActorSystem
+import akka.http.scaladsl.model.{HttpMethods, StatusCodes}
+import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
+import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase.entityMarshaller
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, AkkaHttpResponse, EndpointType}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointType, RouteGenerator}
 import com.webtrends.harness.logging.Logger
 import com.webtrends.harness.service.Service
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.ext.JodaTimeSerializers
 
-import scala.collection.immutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -21,59 +19,71 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   implicit val timeout = Timeout(2 seconds)
   implicit val logger: Logger = Logger.getLogger(getClass.getName)
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
+  implicit val sys: ActorSystem = context.system
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+
+  case class Message(message: String)
 
   override def addCommands: Unit = {
-    }
+    // Get endpoint
+    addAkkaHttpEndpoint[Message, Message]("getTest",
+      HttpMethods.GET,
+      false,
+      Seq(),
+      EndpointType.INTERNAL,
+      reqToHello,
+      echo[Message],
+      stringResponse
+    )
 
-  def responseHandler: PartialFunction[Any, Route] = {
-    case (resp: AkkaHttpResponse[AkkaHttpRequest]) =>
-      val succMarshaller: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], Option[AkkaHttpRequest])] =
-        fromStatusCodeAndHeadersAndValue(entityMarshaller[Option[AkkaHttpRequest]](fmt = formats))
-      completeWith(succMarshaller) { completeFunc =>
-        completeFunc((resp.statusCode.get, immutable.Seq(), resp.data))
-      }
+    // POST endpoint
+    addAkkaHttpEndpoint[Message, Message]("postTest",
+      HttpMethods.POST,
+      false,
+      Seq(),
+      EndpointType.INTERNAL,
+      reqToPayloadMessage,
+      echo[Message],
+      stringResponse
+    )
+
+    // GET endpoint with segments
+    addAkkaHttpEndpoint[List[String], List[String]]("getTest/$name",
+      HttpMethods.GET,
+      false,
+      Seq(),
+      EndpointType.INTERNAL,
+      reqToRouteParams,
+      echo[List[String]],
+      paramsResponse
+    )
+
+    addAkkaHttpEndpoint[List[String], List[String]]("account/$accountGuid/report/$reportId",
+      HttpMethods.GET,
+      false,
+      Seq(),
+      EndpointType.INTERNAL,
+      reqToRouteParams,
+      echo[List[String]],
+      paramsResponse
+    )
   }
 
-  // Get endpoint
-  addAkkaHttpEndpoint("getTest",
-    HttpMethods.GET,
-    false,
-    Seq(),
-    EndpointType.INTERNAL,
-    (req:AkkaHttpRequest)=> Right(req),
-    (req:AkkaHttpRequest) => Future.successful(AkkaHttpResponse(Some("Hello World"), Some(StatusCodes.OK))),
-    responseHandler
-  )
+  def reqToHello(r: AkkaHttpRequest): Future[Message] = Future.successful(Message("Hello World"))
+  def reqToPayloadMessage(r: AkkaHttpRequest): Future[Message] =
+    RouteGenerator.entityToString(r.requestBody.get).map(Message)
+  def reqToRouteParams(r: AkkaHttpRequest): Future[List[String]] = {
+    Future.successful(r.segments.toList)
+  }
 
- // POST endpoint
-  addAkkaHttpEndpoint("postTest",
-    HttpMethods.POST,
-    false,
-    Seq(),
-    EndpointType.INTERNAL,
-    (req:AkkaHttpRequest)=> Right(req),
-    (req:AkkaHttpRequest) => Future.successful(AkkaHttpResponse(Some(req), Some(StatusCodes.OK))),
-    responseHandler
-  )
-  // GET endpoint with segments
-  addAkkaHttpEndpoint("getTest/$name",
-    HttpMethods.GET,
-    false,
-    Seq(),
-    EndpointType.INTERNAL,
-    (req:AkkaHttpRequest)=> Right(req),
-    (req:AkkaHttpRequest) => Future.successful(AkkaHttpResponse(Some(req), Some(StatusCodes.OK))),
-    responseHandler
-  )
+  def echo[T](x: T): Future[T] = {
+    Future.successful(x)
+  }
 
-  addAkkaHttpEndpoint("account/$accountGuid/report/$reportId",
-    HttpMethods.GET,
-    false,
-    Seq(),
-    EndpointType.INTERNAL,
-    (req:AkkaHttpRequest)=> Right(req),
-    (req:AkkaHttpRequest) => Future.successful(AkkaHttpResponse(Some(req), Some(StatusCodes.OK))),
-    responseHandler
-  )
-
+  def stringResponse(result: Message): Route = {
+    complete(StatusCodes.OK, result.message)
+  }
+  def paramsResponse(result: Seq[String]): Route = {
+    complete(StatusCodes.OK, result.mkString(","))
+  }
 }

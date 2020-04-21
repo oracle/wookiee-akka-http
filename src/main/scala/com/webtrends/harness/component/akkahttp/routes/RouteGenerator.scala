@@ -2,80 +2,92 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.pattern.ask
+import akka.stream.Materializer
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
-import com.webtrends.harness.command.{ExecuteCommand, MapBean}
-import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
-import com.webtrends.harness.component.akkahttp._
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.logging.Logger
 
-import scala.collection.{immutable, mutable}
+import scala.collection.immutable
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
+
+
+trait AkkaHttpParameters
+trait AkkaHttpPathSegments
+trait AkkaHttpAuth
+
+// TODO: Get rid of these
+// Use these to generically extract values from a query string
+case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
+case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
+case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
+case class Holder4(_1: String, _2: String, _3: String, _4: String)
+  extends Product4[String, String, String, String] with AkkaHttpPathSegments
+case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
+  extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
+  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
 case class AkkaHttpResponse[T](data: Option[T], statusCode: Option[StatusCode], headers: Seq[HttpHeader] = List())
 case class AkkaHttpRequest(
                             path: String,
-                            segments: AkkaHttpPathSegments,
+                          // List, not Seq as Seq is not <: Product and route params are common command inputs
+                            segments: List[String],
                             method: HttpMethod,
                             requestHeaders: Map[String, String],
-                            params: AkkaHttpParameters,
                             auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
                             time: Long,
                             requestBody: Option[RequestEntity] = None
                           )
 
-// TODO: potential state for frequent default handlers esp: regarding rejection/exception handlers
 object RouteGenerator {
-
-  // TODO: implement simple endpoint using as is, verify happy path
-  // TODO: Identify common pattern for 204s, most likely just a business logic that returns Unit, that is handled by consumer's responseHandler
-  // TODO: Probably move towards EitherT, or just revert to using Trys on the handlers. Feels weird having Either for requestHandler
-  // and Try for the businessLogic directive
-  // TODO: verify what it looks like to handle a 403 unauthorized exception that can occur from either request handler OR the businessLogic method
-  // TODO: Add a default 500 exception handler to run if the consumer's responseHandler does not apply to result of either requesthandler or businessLogic
+  // TODO: Add new rejection/exceptionHandler to recover with as new parameter
+  // TODO: Verify catch all 500 match works
   def makeRoute[T <: Product : ClassTag, V](path: String,
                       method: HttpMethod,
                       defaultHeaders: Seq[HttpHeader],
                       enableCors: Boolean,
                       commandRef: ActorRef,
-                      requestHandler: AkkaHttpRequest => Either[Throwable, T],
-                      responseHandler: PartialFunction[Any, Route])(implicit log: Logger, timeout: Timeout): Route = {
+                      requestHandler: AkkaHttpRequest => Future[T],
+                      responseHandler: V => Route)(implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
         corsSupport(method, enableCors) {
-          AkkaHttpBase.httpMethod(method) {
+          httpMethod(method) {
             // TODO: handleRejections and handleExceptions more part of marshaller, still here or only in marshaller now?
-            httpParams { params: AkkaHttpParameters =>
-              parameterMap { paramMap: Map[String, String] =>
-                httpAuth { auth: AkkaHttpAuth =>
-                  extractRequest { request =>
-                    val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                    val httpEntity =  getPayload(method, request)
-                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis(), httpEntity)
-                    // http request handlers should be built with authorization in mind.
-                    requestHandler(notABean) match {
-                      case Right(requestInfo) =>
-                        onComplete(commandRef ? ExecuteCommand("", requestInfo, timeout)) {
-                          // TODO: non-happy path
-                          case Success(resp: V) =>
-                            responseHandler(resp)
-                          case Failure(f: V) =>
-                            log.info("business logic failed")
-                            complete("response failed")
-                        }
-                      case Left(ex) =>
-                        log.info("request failed")
-                        complete("request failed")
-                    }
+            parameterMap { paramMap: Map[String, String] =>
+              httpAuth { auth: AkkaHttpAuth =>
+                extractRequest { request =>
+                  val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+                  val httpEntity = getPayload(method, request)
+                  val notABean = AkkaHttpRequest(path, paramHoldersToList(segments), method, reqHeaders, auth, paramMap, System.currentTimeMillis(), httpEntity)
+                  // http request handlers should be built with authorization in mind.
+                  onComplete(for {
+                    requestObjs <- requestHandler(notABean)
+                    commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
+                  } yield responseHandler(commandResult.asInstanceOf[V])) {
+                    case Success(route: Route) =>
+                      route
+                    case Failure(ex: Throwable) =>
+                      val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                        .getOrElse(ex.getClass.getSimpleName)
+                      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+                      complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                    case other =>
+                      log.warn(s"$other")
+                      complete(StatusCodes.InternalServerError, "Hit nothing")
                   }
                 }
               }
@@ -86,6 +98,9 @@ object RouteGenerator {
     }
   }
 
+  // This is horrible, but Akka-Http wrote their types in such a way that we can't figure out a cleaner way around this.
+  // PathMatchers currently tied to objects typed explicitly by the number of matches a path needs to accomplish.
+  // Don't expose this, just use the following conversion method to change it to something actually useful.
   protected[routes] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
     val segs = path.split("/").filter(_.nonEmpty).toSeq
     var segCount = 0
@@ -143,15 +158,49 @@ object RouteGenerator {
 
   private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
     if (enableCors) {
-      handleRejections(corsRejectionHandler) & CorsDirectives.cors(AkkaHttpCORS.corsSettings(immutable.Seq(method)))
+      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
     } else {
       pass
     }
   }
 
-  // TODO: is this method actually overriden anywhere? Is it needed?
-  def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
+  // TODO: Replace as soon as you can figure out a generic way to define variable length path matchers
+  private def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
+    segments match {
+      case Holder1(a) => List(a)
+      case Holder2(a, b) => List(a, b)
+      case Holder3(a, b, c) => List(a, b, c)
+      case Holder4(a, b, c, d) => List(a, b, c, d)
+      case Holder5(a, b, c, d, e) => List(a, b, c, d, e)
+      case Holder6(a, b, c, d, e, f) => List(a, b, c, d, e, f)
+      case _ => List()
+    }
 
   // TODO: is this method actually overriden anywhere? Is it needed?
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
+
+  def httpMethod(method: HttpMethod): Directive0 = method match {
+    case HttpMethods.GET => get
+    case HttpMethods.PUT => put
+    case HttpMethods.POST => post
+    case HttpMethods.DELETE => delete
+    case HttpMethods.OPTIONS => options
+    case HttpMethods.PATCH => patch
+  }
+
+  def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
+    CorsSettings.defaultSettings.allowGenericHttpRequests,
+    CorsSettings.defaultSettings.allowCredentials,
+    CorsSettings.defaultSettings.allowedOrigins,
+    CorsSettings.defaultSettings.allowedHeaders,
+    allowedMethods,
+    CorsSettings.defaultSettings.exposedHeaders,
+    CorsSettings.defaultSettings.maxAge
+  )
+
+  def entityToString(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[String] =
+    Unmarshaller.stringUnmarshaller(req)
+
+  def entityToBytes(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[Array[Byte]] =
+    Unmarshaller.byteArrayUnmarshaller(req)
 }

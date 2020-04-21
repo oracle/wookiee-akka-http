@@ -23,9 +23,9 @@ trait AkkaHttpEndpointRegistration {
                                                                enableCors: Boolean,
                                                                defaultHeaders: Seq[HttpHeader],
                                                                endpointType: EndpointType.EndpointType,
-                                                               requestHandler: AkkaHttpRequest => Either[Throwable, T],
+                                                               requestHandler: AkkaHttpRequest => Future[T],
                                                                businessLogic: T => Future[U],
-                                                               responseHandler: PartialFunction[Any, Route],
+                                                               responseHandler: U => Route,
                                                               )(implicit ec: ExecutionContext, log: Logger, to: Timeout): Unit = {
 
     /*
@@ -49,3 +49,4 @@ trait AkkaHttpEndpointRegistration {
       }
     }
 }
+
