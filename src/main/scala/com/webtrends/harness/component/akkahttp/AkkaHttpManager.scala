@@ -21,9 +21,9 @@ case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   val settings = AkkaHttpSettings(config)
-  AccessLog.accessLoggingEnabled = ConfigUtil.getDefaultValue(
+  val accessLoggingEnabled = ConfigUtil.getDefaultValue(
     s"${AkkaHttpManager.ComponentName}.access-logging.enabled", config.getBoolean, true)
-  if (AccessLog.accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
+  if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
   val starMonitor = new Object()
 
   var internalAkkaHttpRef: Option[ActorRef] = None

@@ -1,7 +1,6 @@
 package com.webtrends.harness.component.akkahttp
 
 import akka.actor.ActorSystem
-import akka.actor.Status.Success
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.{HttpMethods, _}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -10,7 +9,6 @@ import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, RouteGe
 import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
 import akka.http.scaladsl.server.Directives.complete
-import akka.http.scaladsl.server.Route
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -58,6 +56,4 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       }
     }
   }
-
-
 }

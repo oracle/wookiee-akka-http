@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpParameters, AkkaHttpPathSegments, AkkaHttpRequest, EndpointType, Holder1, Holder2, RouteGenerator}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointType, RouteGenerator}
 import com.webtrends.harness.logging.Logger
 import com.webtrends.harness.service.Service
 import org.json4s.{DefaultFormats, Formats}
@@ -46,6 +46,7 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       echo[Message],
       stringResponse
     )
+
     // GET endpoint with segments
     addAkkaHttpEndpoint[List[String], List[String]]("getTest/$name",
       HttpMethods.GET,

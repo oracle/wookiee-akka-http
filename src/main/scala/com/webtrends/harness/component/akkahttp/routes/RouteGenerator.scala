@@ -47,7 +47,7 @@ case class AkkaHttpRequest(
                             auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
                             time: Long,
-                            requestBody:Option[RequestEntity] = None
+                            requestBody: Option[RequestEntity] = None
                           )
 
 object RouteGenerator {
@@ -151,6 +151,11 @@ object RouteGenerator {
     }
   }
 
+  def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
+    case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
+    case _ => None
+  }
+
   private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
     if (enableCors) {
       handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
@@ -181,11 +186,6 @@ object RouteGenerator {
     case HttpMethods.DELETE => delete
     case HttpMethods.OPTIONS => options
     case HttpMethods.PATCH => patch
-  }
-
-  def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
-    case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
-    case _ => None
   }
 
   def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
