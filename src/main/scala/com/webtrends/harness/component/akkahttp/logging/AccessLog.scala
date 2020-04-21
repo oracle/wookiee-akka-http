@@ -6,9 +6,8 @@ import com.webtrends.harness.component.akkahttp.logging.AccessLog._
 import com.webtrends.harness.component.akkahttp.routes.AkkaHttpRequest
 import com.webtrends.harness.logging.Logger
 
-trait AccessLog  {
-  this: BaseCommand =>
-
+object AccessLog  {
+  val host: String = java.net.InetAddress.getLocalHost.getHostName
   val accessLog = Logger("AccessLog")
 
   // Override to obtain the id
@@ -18,7 +17,7 @@ trait AccessLog  {
     None
   }
 
-  def logAccess(request: HttpRequest, akkaHttpRequest: AkkaHttpRequest, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
+  def logAccess(request: HttpRequest, akkaHttpRequest: AkkaHttpRequest, statusCode: Option[StatusCode]) = {
 
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     try {
@@ -56,9 +55,4 @@ trait AccessLog  {
         accessLog.error("Could not construct access log", e)
     }
   }
-}
-
-object AccessLog {
-  var accessLoggingEnabled = true
-  val host: String = java.net.InetAddress.getLocalHost.getHostName
 }

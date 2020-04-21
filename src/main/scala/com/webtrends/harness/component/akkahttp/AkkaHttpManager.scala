@@ -31,43 +31,6 @@ class AkkaHttpManager(name:String) extends Component(name) with AkkaHttp {
   var wsAkkaHttpRef: Option[ActorRef] = None
   implicit val logger: Logger = log
 
-  // Pretty much just notes of previous meetings
-//  def addExternalCommand[U <: Product: ClassTag, V: ClassTag](id: String,
-//                                                          businessLogic: U => Future[V],
-//                                                          customUnmarshaller: Bean => U,
-//                                                          customMarshaller: V => Array[Byte],
-//                                                          endpointConfig: EndpointConfig)(implicit ec: ExecutionContext): Unit = {
-//
-//    // TODO: Split based off of type of endpoint type [External|Internal|WS]
-//    addEndpoint(endpointConfig.path, businessLogic)
-//      .map(ref => ExternalAkkaHttpRouteContainer.addRoute(RouteGenerator.makeRoute(ref, endpointConfig, customMarshaller)))
-//  }
-
-//  class Endpoint[U, V](endpointConfig: EndpointConfig, businessLogic: U => Future[V])
-//  class AkkaHttpEndpointConfig(path: String, method: ...) extends EndpointConfig {
-//
-//  }
-//
-//  def getPrincipal(request: AkkaHttpRequest): Principal
-//  def getPayloadType[T](request: AkkaHttpRequest): T
-//  def newPayloadHandler[T](request: AkkaHttpRequest): Either[ApiException, (Principal, T)] = {
-//    // get principal
-//    // can principal perform action on this request.path?
-//    // yes:
-//      Right((getPrincipal(bean), getPayloadType[T](bean)))
-//    // no:
-//     Left(NotAuthorizedException)
-//  }
-//
-//  def makeGroup(requestObjs: (Principal, Group)): Future[Either[Exception, Group]]
-////  Endpoint(AkkaHttpEndpointConfig("/groups", HttpMethod.POST, principalUnmarshaller, groupsMarshaller), getGroups)
-//  addExternalHttpEndpoint(newPayloadHandler[Group], makeGroup, groupsMarshaller, "/groups", HttpMethods.POST)
-//  addGrpcEndpoint(grpcPrincipalUnmarshaller, getGroups, grpcGroupsMarshaller)
-//  addZkEndpoint(requestHandler, businessLogic, responseHandler)
-//
-//  @Method("GET")
-//  val config = AkkaHttpEndpointConfig(....)
-
   def startAkkaHttp(): Unit = {
     starMonitor.synchronized {
       log.info("Starting Wookiee Akka HTTP Actors...")
