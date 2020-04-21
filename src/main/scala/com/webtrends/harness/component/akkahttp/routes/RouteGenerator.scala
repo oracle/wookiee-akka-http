@@ -25,6 +25,7 @@ trait AkkaHttpParameters
 trait AkkaHttpPathSegments
 trait AkkaHttpAuth
 
+// TODO: Get rid of these
 // Use these to generically extract values from a query string
 case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
 case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
@@ -39,10 +40,10 @@ case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _
 case class AkkaHttpResponse[T](data: Option[T], statusCode: Option[StatusCode], headers: Seq[HttpHeader] = List())
 case class AkkaHttpRequest(
                             path: String,
-                            segments: AkkaHttpPathSegments,
+                          // List, not Seq as Seq is not <: Product and route params are common command inputs
+                            segments: List[String],
                             method: HttpMethod,
                             requestHeaders: Map[String, String],
-                            params: AkkaHttpParameters,
                             auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
                             time: Long,
@@ -66,29 +67,27 @@ object RouteGenerator {
         corsSupport(method, enableCors) {
           httpMethod(method) {
             // TODO: handleRejections and handleExceptions more part of marshaller, still here or only in marshaller now?
-            httpParams { params: AkkaHttpParameters =>
-              parameterMap { paramMap: Map[String, String] =>
-                httpAuth { auth: AkkaHttpAuth =>
-                  extractRequest { request =>
-                    val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                    val httpEntity =  getPayload(method, request)
-                    val notABean = AkkaHttpRequest(path, segments, method, reqHeaders, params, auth, paramMap, System.currentTimeMillis(), httpEntity)
-                    // http request handlers should be built with authorization in mind.
-                    onComplete(for {
-                      requestObjs <- requestHandler(notABean)
-                      commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                    } yield responseHandler(commandResult.asInstanceOf[V])) {
-                      case Success(route: Route) =>
-                        route
-                      case Failure(ex: Throwable) =>
-                        val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
-                          .getOrElse(ex.getClass.getSimpleName)
-                        log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
-                        complete(StatusCodes.InternalServerError, "There was an internal server error.")
-                      case other =>
-                        log.warn(s"$other")
-                        complete(StatusCodes.InternalServerError, "Hit nothing")
-                    }
+            parameterMap { paramMap: Map[String, String] =>
+              httpAuth { auth: AkkaHttpAuth =>
+                extractRequest { request =>
+                  val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+                  val httpEntity = getPayload(method, request)
+                  val notABean = AkkaHttpRequest(path, paramHoldersToList(segments), method, reqHeaders, auth, paramMap, System.currentTimeMillis(), httpEntity)
+                  // http request handlers should be built with authorization in mind.
+                  onComplete(for {
+                    requestObjs <- requestHandler(notABean)
+                    commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
+                  } yield responseHandler(commandResult.asInstanceOf[V])) {
+                    case Success(route: Route) =>
+                      route
+                    case Failure(ex: Throwable) =>
+                      val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                        .getOrElse(ex.getClass.getSimpleName)
+                      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+                      complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                    case other =>
+                      log.warn(s"$other")
+                      complete(StatusCodes.InternalServerError, "Hit nothing")
                   }
                 }
               }
@@ -99,6 +98,9 @@ object RouteGenerator {
     }
   }
 
+  // This is horrible, but Akka-Http wrote their types in such a way that we can't figure out a cleaner way around this.
+  // PathMatchers currently tied to objects typed explicitly by the number of matches a path needs to accomplish.
+  // Don't expose this, just use the following conversion method to change it to something actually useful.
   protected[routes] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
     val segs = path.split("/").filter(_.nonEmpty).toSeq
     var segCount = 0
@@ -157,8 +159,17 @@ object RouteGenerator {
     }
   }
 
-  // TODO: is this method actually overriden anywhere? Is it needed?
-  def httpParams: Directive1[AkkaHttpParameters] = provide(new AkkaHttpParameters {})
+  // TODO: Replace as soon as you can figure out a generic way to define variable length path matchers
+  private def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
+    segments match {
+      case Holder1(a) => List(a)
+      case Holder2(a, b) => List(a, b)
+      case Holder3(a, b, c) => List(a, b, c)
+      case Holder4(a, b, c, d) => List(a, b, c, d)
+      case Holder5(a, b, c, d, e) => List(a, b, c, d, e)
+      case Holder6(a, b, c, d, e, f) => List(a, b, c, d, e, f)
+      case _ => List()
+    }
 
   // TODO: is this method actually overriden anywhere? Is it needed?
   def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})

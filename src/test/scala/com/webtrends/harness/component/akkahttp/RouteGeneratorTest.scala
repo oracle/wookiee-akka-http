@@ -29,7 +29,6 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     def responseHandler = (resp: AkkaHttpRequest) => complete(resp.toString)
 
     "add simple route" in {
-//      def responseHandler: PartialFunction[Any, Route] = {case (resp: AkkaHttpRequest) => complete(resp.toString) }
       val r = RouteGenerator.makeRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler)
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
