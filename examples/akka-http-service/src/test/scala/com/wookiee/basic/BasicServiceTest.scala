@@ -1,13 +1,13 @@
-/*
 package com.wookiee.basic
 
 import akka.testkit.TestProbe
 import com.typesafe.config.ConfigFactory
 import com.webtrends.harness.service.messages.GetMetaDetails
 import com.webtrends.harness.service.meta.ServiceMetaDetails
-import com.webtrends.harness.service.test.{BaseWookieeScalaTest, TestHarness}
+import com.webtrends.harness.service.test.{BaseWookieeTest, TestHarness}
+import org.scalatest.{Inspectors, Matchers, WordSpecLike}
 
-class BasicServiceTest extends BaseWookieeScalaTest {
+class BasicServiceTest extends BaseWookieeTest with WordLikeSpec {
   override def config = ConfigFactory.empty()
   override def servicesMap = Some(Map("base" -> classOf[AkkaHttpService]))
 
@@ -22,4 +22,3 @@ class BasicServiceTest extends BaseWookieeScalaTest {
     }
   }
 }
-*/
