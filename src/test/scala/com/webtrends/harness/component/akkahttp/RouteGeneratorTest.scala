@@ -24,10 +24,16 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
   "RouteGenerator " should {
 
     def actorRef = actorSystem.actorOf(SimpleCommandActor())
-    def requestHandler = (req: AkkaHttpRequest) => Future.successful(req)
-    def responseHandler200 = (resp: AkkaHttpRequest) => complete(StatusCodes.OK, resp.toString)
+    def requestHandler(req: AkkaHttpRequest) = Future.successful(req)
+    def responseHandler200(resp: AkkaHttpRequest) = complete(StatusCodes.OK, resp.toString)
     def rejectionHandler: PartialFunction[Throwable, Route] = {
       case t: Throwable => complete(t.getMessage)
+    }
+
+    val failMessage = "purposeful fail"
+    def errorOnResponse(echoed: AkkaHttpRequest): Route = {
+      if (true) throw new Exception(failMessage)
+      complete(StatusCodes.InternalServerError, "should not have returned route")
     }
 
     "add simple route" in {
@@ -57,6 +63,14 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       Post("/postTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "postTest")
+      }
+    }
+
+    "route with error in response handler" in {
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, errorOnResponse, rejectionHandler)
+      Get("/errorTest") ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[String] contains failMessage)
       }
     }
   }
