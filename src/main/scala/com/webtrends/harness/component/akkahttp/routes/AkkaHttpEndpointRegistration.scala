@@ -18,7 +18,8 @@ trait AkkaHttpEndpointRegistration {
   this: CommandHelper =>
 
   // TODO: new prop for enableHealthcheck?
-  def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](path: String,
+  def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
+                                                               path: String,
                                                                method: HttpMethod,
                                                                enableCors: Boolean,
                                                                defaultHeaders: Seq[HttpHeader],
@@ -26,16 +27,10 @@ trait AkkaHttpEndpointRegistration {
                                                                requestHandler: AkkaHttpRequest => Future[T],
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
+                                                               rejectionHandler: PartialFunction[Throwable, Route]
                                                               )(implicit ec: ExecutionContext, log: Logger, to: Timeout): Unit = {
-
-    /*
-    Command registration  is failing is path contains '/ $'.  Slash or $ character is not allowed in actor name.
-    path variable is taking as actor name while registering the command
-     */
-    val commandName = path.replaceAll("[/$]", "") // to be modified
-
-      addCommand(commandName, businessLogic).map { ref =>
-        val route = RouteGenerator.makeRoute(path, method, defaultHeaders, enableCors, ref, requestHandler, responseHandler)
+      addCommand(name, businessLogic).map { ref =>
+        val route = RouteGenerator.makeHttpRoute(path, method, defaultHeaders, enableCors, ref, requestHandler, responseHandler, rejectionHandler)
 
         endpointType match {
           case EndpointType.INTERNAL =>
@@ -43,7 +38,7 @@ trait AkkaHttpEndpointRegistration {
           case EndpointType.EXTERNAL =>
             ExternalAkkaHttpRouteContainer.addRoute(route)
           case EndpointType.WEBSOCKET =>
-            // TODO: I can't imaging this uses the same directive as internal/external
+            // TODO: not needed yet
             ???
         }
       }

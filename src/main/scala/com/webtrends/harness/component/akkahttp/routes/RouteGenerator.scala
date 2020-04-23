@@ -37,14 +37,12 @@ case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
 case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
   extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
-case class AkkaHttpResponse[T](data: Option[T], statusCode: Option[StatusCode], headers: Seq[HttpHeader] = List())
 case class AkkaHttpRequest(
                             path: String,
                           // List, not Seq as Seq is not <: Product and route params are common command inputs
                             segments: List[String],
                             method: HttpMethod,
                             requestHeaders: Map[String, String],
-                            auth: AkkaHttpAuth,
                             queryParams: Map[String, String],
                             time: Long,
                             requestBody: Option[RequestEntity] = None
@@ -53,42 +51,42 @@ case class AkkaHttpRequest(
 object RouteGenerator {
   // TODO: Add new rejection/exceptionHandler to recover with as new parameter
   // TODO: Verify catch all 500 match works
-  def makeRoute[T <: Product : ClassTag, V](path: String,
-                      method: HttpMethod,
-                      defaultHeaders: Seq[HttpHeader],
-                      enableCors: Boolean,
-                      commandRef: ActorRef,
-                      requestHandler: AkkaHttpRequest => Future[T],
-                      responseHandler: V => Route)(implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
+  def makeHttpRoute[T <: Product : ClassTag, V](path: String,
+                                                method: HttpMethod,
+                                                defaultHeaders: Seq[HttpHeader],
+                                                enableCors: Boolean,
+                                                commandRef: ActorRef,
+                                                requestHandler: AkkaHttpRequest => Future[T],
+                                                responseHandler: V => Route,
+                                                rejectionHandler: PartialFunction[Throwable, Route])
+                                               (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
         corsSupport(method, enableCors) {
           httpMethod(method) {
-            // TODO: handleRejections and handleExceptions more part of marshaller, still here or only in marshaller now?
             parameterMap { paramMap: Map[String, String] =>
-              httpAuth { auth: AkkaHttpAuth =>
-                extractRequest { request =>
-                  val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                  val httpEntity = getPayload(method, request)
-                  val notABean = AkkaHttpRequest(path, paramHoldersToList(segments), method, reqHeaders, auth, paramMap, System.currentTimeMillis(), httpEntity)
-                  // http request handlers should be built with authorization in mind.
-                  onComplete(for {
-                    requestObjs <- requestHandler(notABean)
-                    commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                  } yield responseHandler(commandResult.asInstanceOf[V])) {
-                    case Success(route: Route) =>
-                      route
-                    case Failure(ex: Throwable) =>
-                      val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
-                        .getOrElse(ex.getClass.getSimpleName)
-                      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
-                      complete(StatusCodes.InternalServerError, "There was an internal server error.")
-                    case other =>
-                      log.warn(s"$other")
-                      complete(StatusCodes.InternalServerError, "Hit nothing")
-                  }
+              extractRequest { request =>
+                val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+                val httpEntity = getPayload(method, request)
+                val notABean = AkkaHttpRequest(path, paramHoldersToList(segments), method, reqHeaders, paramMap, System.currentTimeMillis(), httpEntity)
+                // http request handlers should be built with authorization in mind.
+                onComplete((for {
+                  requestObjs <- requestHandler(notABean)
+                  commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
+                } yield responseHandler(commandResult.asInstanceOf[V])).recover(rejectionHandler)) {
+                  case Success(route: Route) =>
+                    route
+                  case Failure(ex: Throwable) =>
+                    val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                      .getOrElse(ex.getClass.getSimpleName)
+                    log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+                    complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                  // TODO: figure out what edge cases can lead us to this other branch
+                  case other =>
+                    log.warn(s"$other")
+                    complete(StatusCodes.InternalServerError)
                 }
               }
             }
@@ -175,9 +173,6 @@ object RouteGenerator {
       case Holder6(a, b, c, d, e, f) => List(a, b, c, d, e, f)
       case _ => List()
     }
-
-  // TODO: is this method actually overriden anywhere? Is it needed?
-  def httpAuth: Directive1[AkkaHttpAuth] = provide(new AkkaHttpAuth {})
 
   def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
