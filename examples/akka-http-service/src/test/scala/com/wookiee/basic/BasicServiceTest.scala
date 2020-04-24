@@ -1,25 +1,26 @@
-/*
 package com.wookiee.basic
 
+import akka.actor.ActorSystem
 import akka.testkit.TestProbe
 import com.typesafe.config.ConfigFactory
 import com.webtrends.harness.service.messages.GetMetaDetails
 import com.webtrends.harness.service.meta.ServiceMetaDetails
-import com.webtrends.harness.service.test.{BaseWookieeScalaTest, TestHarness}
+import com.webtrends.harness.service.test.{TestComponent, TestHarness, TestService}
+import org.scalatest.WordSpecLike
 
-class BasicServiceTest extends BaseWookieeScalaTest {
-  override def config = ConfigFactory.empty()
-  override def servicesMap = Some(Map("base" -> classOf[AkkaHttpService]))
+class BasicServiceTest extends WordSpecLike {
+  val sys: TestHarness = TestHarness(ConfigFactory.empty(), Some(Map("base" -> classOf[TestService])),
+    Some(Map("testcomponent" -> classOf[TestComponent])), port = 2551)
+  implicit val actorSystem: ActorSystem = TestHarness.system(2551).get
 
   "BasicService" should {
     "start itself up" in {
       val probe = TestProbe()
-      val testService = TestHarness.harness.get.getService("base")
+      val testService = sys.getService("base")
       assert(testService.isDefined, "Basic Service was not registered")
 
       probe.send(testService.get, GetMetaDetails)
-      ServiceMetaDetails(false) mustEqual probe.expectMsg(ServiceMetaDetails(false))
+      assert(ServiceMetaDetails(false) == probe.expectMsg(ServiceMetaDetails(false)))
     }
   }
 }
-*/

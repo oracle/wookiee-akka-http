@@ -1,3 +1,19 @@
+/*
+ *  Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
 package com.wookiee.basic
 
 import akka.actor.ActorSystem
@@ -15,6 +31,10 @@ import org.json4s.ext.JodaTimeSerializers
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
+case class Message(message: String)
+case class NotAuthorized(message: String) extends Exception
+case class Forbidden(message: String) extends Exception
+
 class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   implicit val timeout = Timeout(2 seconds)
   implicit val logger: Logger = Logger.getLogger(getClass.getName)
@@ -22,50 +42,73 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   implicit val sys: ActorSystem = context.system
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
-  case class Message(message: String)
-
   override def addCommands: Unit = {
     // Get endpoint
-    addAkkaHttpEndpoint[Message, Message]("getTest",
+    addAkkaHttpEndpoint[Message, Message](
+      "simple.get",
+      "getTest",
       HttpMethods.GET,
       false,
       Seq(),
       EndpointType.INTERNAL,
       reqToHello,
       echo[Message],
-      stringResponse
+      stringResponse,
+      authorizationRejections
     )
 
     // POST endpoint
-    addAkkaHttpEndpoint[Message, Message]("postTest",
+    addAkkaHttpEndpoint[Message, Message](
+      "post.test",
+      "postTest",
       HttpMethods.POST,
       false,
       Seq(),
       EndpointType.INTERNAL,
       reqToPayloadMessage,
       echo[Message],
-      stringResponse
+      stringResponse,
+      authorizationRejections
     )
 
     // GET endpoint with segments
-    addAkkaHttpEndpoint[List[String], List[String]]("getTest/$name",
+    addAkkaHttpEndpoint[List[String], List[String]](
+      "segment.lookup",
+      "getTest/$name",
       HttpMethods.GET,
       false,
       Seq(),
       EndpointType.INTERNAL,
       reqToRouteParams,
       echo[List[String]],
-      paramsResponse
+      paramsResponse,
+      authorizationRejections
     )
 
-    addAkkaHttpEndpoint[List[String], List[String]]("account/$accountGuid/report/$reportId",
+    addAkkaHttpEndpoint[List[String], List[String]](
+      "report.lookup",
+      "account/$accountGuid/report/$reportId",
       HttpMethods.GET,
       false,
       Seq(),
       EndpointType.INTERNAL,
       reqToRouteParams,
       echo[List[String]],
-      paramsResponse
+      paramsResponse,
+      authorizationRejections
+    )
+
+    addAkkaHttpEndpoint[List[String], List[String]](
+      "report.lookup.forbidden",
+      "report/$reportId",
+      HttpMethods.GET,
+      false,
+      Seq(),
+      EndpointType.INTERNAL,
+      rejectReport1Calls,
+      echo[List[String]],
+      paramsResponse,
+      authorizationRejections
     )
   }
 
@@ -73,7 +116,15 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   def reqToPayloadMessage(r: AkkaHttpRequest): Future[Message] =
     RouteGenerator.entityToString(r.requestBody.get).map(Message)
   def reqToRouteParams(r: AkkaHttpRequest): Future[List[String]] = {
-    Future.successful(r.segments.toList)
+    Future.successful(r.segments)
+  }
+  def rejectReport1Calls(r: AkkaHttpRequest): Future[List[String]] = {
+    val segments = r.segments
+    if (segments.headOption.contains("1")) {
+      Future.failed(Forbidden("Access to report 1 forbidden"))
+    } else {
+      Future.successful(r.segments)
+    }
   }
 
   def echo[T](x: T): Future[T] = {
@@ -85,5 +136,11 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   }
   def paramsResponse(result: Seq[String]): Route = {
     complete(StatusCodes.OK, result.mkString(","))
+  }
+  def authorizationRejections: PartialFunction[Throwable, Route] = {
+    case ex: NotAuthorized =>
+      complete(StatusCodes.Unauthorized, ex.message)
+    case ex: Forbidden =>
+      complete(StatusCodes.Forbidden, ex.message)
   }
 }
