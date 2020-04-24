@@ -14,9 +14,6 @@
  *  limitations under the License.
  */
 
-/*
- * Copyright (c) 2014. Webtrends (https://www.webtrends.com)
- */
 package com.webtrends.harness.component.akkahttp.routes
 
 import akka.actor.Props
