@@ -97,12 +97,8 @@ object RouteGenerator {
                   case Failure(ex: Throwable) =>
                     val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
                       .getOrElse(ex.getClass.getSimpleName)
-                    log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], Wrap in an AkkaHttpException before sending back", ex)
+                    log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
                     complete(StatusCodes.InternalServerError, "There was an internal server error.")
-                  // TODO: figure out what edge cases can lead us to this other branch
-                  case other =>
-                    log.warn(s"$other")
-                    complete(StatusCodes.InternalServerError)
                 }
               }
             }
