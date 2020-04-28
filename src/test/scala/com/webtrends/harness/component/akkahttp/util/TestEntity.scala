@@ -26,3 +26,6 @@ case class RequestInfo(path: String,
                        routeParams: Map[String, String],
                        queryParams: Map[String, String],
                        body: Option[String])
+
+case class NotAuthorized(message: String) extends Exception
+case class Forbidden(message: String) extends Exception
