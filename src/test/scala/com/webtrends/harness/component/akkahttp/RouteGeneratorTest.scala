@@ -26,7 +26,6 @@ import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
-import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -41,13 +40,10 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
   "RouteGenerator " should {
 
     def actorRef = actorSystem.actorOf(SimpleCommandActor())
-    def requestHandler(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.successful(req)
-    def responseHandler200(resp: AkkaHttpRequest): Route = complete(StatusCodes.OK, resp.toString)
-
+    def requestHandler(req: AkkaHttpRequest) = Future.successful(req)
+    def responseHandler200(resp: AkkaHttpRequest) = complete(StatusCodes.OK, resp.toString)
     def rejectionHandler: PartialFunction[Throwable, Route] = {
-      case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
-      case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
-      case t: Throwable => complete(StatusCodes.InternalServerError, t.getMessage)
+      case t: Throwable => complete(t.getMessage)
     }
 
     val failMessage = "purposeful fail"
@@ -55,9 +51,6 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       if (true) throw new Exception(failMessage)
       complete(StatusCodes.InternalServerError, "should not have returned route")
     }
-    def requestHandlerWithException(req: AkkaHttpRequest): Future[AkkaHttpRequest] = throw new Exception(failMessage)
-    def requestHandlerWithAuthenticationFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(NotAuthorized(failMessage))
-    def requestHandlerWithUnknownFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(new IllegalArgumentException(failMessage))
 
     "add simple route" in {
       val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
@@ -92,31 +85,8 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     "route with error in response handler" in {
       val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, errorOnResponse, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
-        assert(status == StatusCodes.InternalServerError)
+        assert(status == StatusCodes.OK)
         assert(entityAs[String] contains failMessage)
-      }
-    }
-
-    "route with authentication failure returned in request handler throw 401 error code" in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithAuthenticationFailure, responseHandler200, rejectionHandler)
-      Get("/errorTest") ~> r ~> check {
-        assert(status == StatusCodes.Unauthorized)
-        assert(entityAs[String] contains failMessage)
-      }
-    }
-    "route with unknown failure returned in request handler throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithUnknownFailure, responseHandler200, rejectionHandler)
-      Get("/errorTest") ~> r ~> check {
-        assert(status == StatusCodes.InternalServerError)
-        assert(entityAs[String] contains failMessage)
-      }
-    }
-    "route with exception in request handler (abnormal termination of logic) throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithException, responseHandler200, rejectionHandler)
-      Get("/errorTest") ~> r ~> check {
-        assert(status == StatusCodes.InternalServerError)
-        // exceptions are caught by default exception handler of Akka Http
-        assert(entityAs[String] contains StatusCodes.InternalServerError.defaultMessage)
       }
     }
   }
