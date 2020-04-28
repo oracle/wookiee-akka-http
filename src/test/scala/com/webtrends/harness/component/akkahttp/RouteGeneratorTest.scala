@@ -53,21 +53,21 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     }
 
     "add simple route" in {
-      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "getTest")
       }
     }
     "route with path segments" in {
-      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest/123") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "123")
       }
     }
     "route with path segments and query params" in {
-      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest/123?enable=true") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "123")
@@ -75,7 +75,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       }
     }
     "route with post method" in {
-      val r = RouteGenerator.makeHttpRoute("postTest", HttpMethods.POST, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("postTest", HttpMethods.POST, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Post("/postTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "postTest")
@@ -83,7 +83,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     }
 
     "route with error in response handler" in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, errorOnResponse, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandler, errorOnResponse, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains failMessage)

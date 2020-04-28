@@ -19,6 +19,7 @@ package com.webtrends.harness.component.akkahttp.routes
 import akka.actor.ActorRef
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
+import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.unmarshalling.Unmarshaller
@@ -29,6 +30,7 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
+import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.logging.Logger
 
 import scala.collection.immutable
@@ -58,6 +60,7 @@ case class AkkaHttpRequest(
                           // List, not Seq as Seq is not <: Product and route params are common command inputs
                             segments: List[String],
                             method: HttpMethod,
+                            protocol: HttpProtocol,
                             requestHeaders: Map[String, String],
                             queryParams: Map[String, String],
                             time: Long,
@@ -69,12 +72,13 @@ object RouteGenerator {
   // TODO: Verify catch all 500 match works
   def makeHttpRoute[T <: Product : ClassTag, V](path: String,
                                                 method: HttpMethod,
-                                                defaultHeaders: Seq[HttpHeader],
-                                                enableCors: Boolean,
                                                 commandRef: ActorRef,
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
-                                                rejectionHandler: PartialFunction[Throwable, Route])
+                                                rejectionHandler: PartialFunction[Throwable, Route],
+                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
+                                                enableCors: Boolean = false,
+                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
@@ -86,18 +90,27 @@ object RouteGenerator {
               extractRequest { request =>
                 val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
                 val httpEntity = getPayload(method, request)
-                val notABean = AkkaHttpRequest(path, paramHoldersToList(segments), method, reqHeaders, paramMap, System.currentTimeMillis(), httpEntity)
+                val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
+                  reqHeaders, paramMap, System.currentTimeMillis(), httpEntity)
                 // http request handlers should be built with authorization in mind.
                 onComplete((for {
-                  requestObjs <- requestHandler(notABean)
+                  requestObjs <- requestHandler(reqWrapper)
                   commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
                 } yield responseHandler(commandResult.asInstanceOf[V])).recover(rejectionHandler)) {
                   case Success(route: Route) =>
-                    route
+                    mapRouteResult {
+                      case Complete(response) =>
+                        AccessLog.logAccess(reqWrapper, accessLogIdGetter, response.status)
+                        Complete(response)
+                      case Rejected(rejections) =>
+                        // TODO: Current expectation is that user's rejectionHandler should already handle rejections before this point
+                        ???
+                    }(route)
                   case Failure(ex: Throwable) =>
                     val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
                       .getOrElse(ex.getClass.getSimpleName)
                     log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
+                    AccessLog.logAccess(reqWrapper, accessLogIdGetter, StatusCodes.InternalServerError)
                     complete(StatusCodes.InternalServerError, "There was an internal server error.")
                 }
               }
