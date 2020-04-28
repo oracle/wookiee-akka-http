@@ -98,25 +98,33 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     }
 
     "route with authentication failure returned in request handler throw 401 error code" in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithAuthenticationFailure, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithAuthenticationFailure, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.Unauthorized)
         assert(entityAs[String] contains failMessage)
       }
     }
     "route with unknown failure returned in request handler throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithUnknownFailure, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithUnknownFailure, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.InternalServerError)
         assert(entityAs[String] contains failMessage)
       }
     }
     "route with exception in request handler (abnormal termination of logic) throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithException, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithException, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.InternalServerError)
         // exceptions are caught by default exception handler of Akka Http
         assert(entityAs[String] contains StatusCodes.InternalServerError.defaultMessage)
+      }
+    }
+    "providing accessLog id getter gets called with AkkaHttpRequest object" in {
+      var called = false
+      val r = RouteGenerator.makeHttpRoute("accessLogTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, Some(r => { called = r.isInstanceOf[AkkaHttpRequest]; "works" }))
+      Get("/accessLogTest") ~> r ~> check {
+        assert(called, "called variable not reset by accessLogIdGetter call")
       }
     }
   }

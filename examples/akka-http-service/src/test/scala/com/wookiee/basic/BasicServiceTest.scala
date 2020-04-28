@@ -8,6 +8,7 @@ import com.webtrends.harness.service.meta.ServiceMetaDetails
 import com.webtrends.harness.service.test.{TestComponent, TestHarness, TestService}
 import org.scalatest.WordSpecLike
 
+// TODO: Figure out why this test isn't working. Subtask created to track.
 class BasicServiceTest extends WordSpecLike {
 //  val sys: TestHarness = TestHarness(ConfigFactory.empty(), Some(Map("base" -> classOf[TestService])),
 //    Some(Map("testcomponent" -> classOf[TestComponent])), port = 2551)

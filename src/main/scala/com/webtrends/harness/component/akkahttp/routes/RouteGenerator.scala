@@ -100,7 +100,7 @@ object RouteGenerator {
                   case Success(route: Route) =>
                     mapRouteResult {
                       case Complete(response) =>
-                        AccessLog.logAccess(reqWrapper, accessLogIdGetter, response.status)
+                        accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
                         Complete(response)
                       case Rejected(rejections) =>
                         // TODO: Current expectation is that user's rejectionHandler should already handle rejections before this point
@@ -110,7 +110,7 @@ object RouteGenerator {
                     val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
                       .getOrElse(ex.getClass.getSimpleName)
                     log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
-                    AccessLog.logAccess(reqWrapper, accessLogIdGetter, StatusCodes.InternalServerError)
+                    accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
                     complete(StatusCodes.InternalServerError, "There was an internal server error.")
                 }
               }
