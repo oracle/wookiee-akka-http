@@ -48,13 +48,12 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       "simple.get",
       "getTest",
       HttpMethods.GET,
-      enableCors = false,
-      Seq(),
       EndpointType.INTERNAL,
       reqToHello,
       echo[Message],
       stringResponse,
-      authorizationRejections
+      authorizationRejections,
+      Some(_ => "myId")
     )
 
     // POST endpoint
@@ -62,8 +61,6 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       "post.test",
       "postTest",
       HttpMethods.POST,
-      enableCors = false,
-      Seq(),
       EndpointType.INTERNAL,
       reqToPayloadMessage,
       echo[Message],
@@ -76,8 +73,6 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       "segment.lookup",
       "getTest/$name",
       HttpMethods.GET,
-      enableCors = false,
-      Seq(),
       EndpointType.INTERNAL,
       reqToRouteParams,
       echo[List[String]],
@@ -89,8 +84,6 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       "report.lookup",
       "account/$accountGuid/report/$reportId",
       HttpMethods.GET,
-      enableCors = false,
-      Seq(),
       EndpointType.INTERNAL,
       reqToRouteParams,
       echo[List[String]],
@@ -102,8 +95,6 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       "report.lookup.forbidden",
       "report/$reportId",
       HttpMethods.GET,
-      enableCors = false,
-      Seq(),
       EndpointType.INTERNAL,
       rejectReport1Calls,
       echo[List[String]],

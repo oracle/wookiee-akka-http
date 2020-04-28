@@ -60,21 +60,21 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     def requestHandlerWithUnknownFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(new IllegalArgumentException(failMessage))
 
     "add simple route" in {
-      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "getTest")
       }
     }
     "route with path segments" in {
-      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest/123") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "123")
       }
     }
     "route with path segments and query params" in {
-      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest/123?enable=true") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "123")
@@ -82,7 +82,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       }
     }
     "route with post method" in {
-      val r = RouteGenerator.makeHttpRoute("postTest", HttpMethods.POST, Seq(), false, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("postTest", HttpMethods.POST, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Post("/postTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "postTest")
@@ -90,7 +90,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     }
 
     "route with error in response handler" in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandler, errorOnResponse, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandler, errorOnResponse, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.InternalServerError)
         assert(entityAs[String] contains failMessage)
@@ -98,25 +98,33 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     }
 
     "route with authentication failure returned in request handler throw 401 error code" in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithAuthenticationFailure, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithAuthenticationFailure, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.Unauthorized)
         assert(entityAs[String] contains failMessage)
       }
     }
     "route with unknown failure returned in request handler throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithUnknownFailure, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithUnknownFailure, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.InternalServerError)
         assert(entityAs[String] contains failMessage)
       }
     }
     "route with exception in request handler (abnormal termination of logic) throw 500 error code " in {
-      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, Seq(), false, actorRef, requestHandlerWithException, responseHandler200, rejectionHandler)
+      val r = RouteGenerator.makeHttpRoute("errorTest", HttpMethods.GET, actorRef, requestHandlerWithException, responseHandler200, rejectionHandler)
       Get("/errorTest") ~> r ~> check {
         assert(status == StatusCodes.InternalServerError)
         // exceptions are caught by default exception handler of Akka Http
         assert(entityAs[String] contains StatusCodes.InternalServerError.defaultMessage)
+      }
+    }
+    "providing accessLog id getter gets called with AkkaHttpRequest object" in {
+      var called = false
+      val r = RouteGenerator.makeHttpRoute("accessLogTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, Some(r => { called = r.isInstanceOf[AkkaHttpRequest]; "works" }))
+      Get("/accessLogTest") ~> r ~> check {
+        assert(called, "called variable not reset by accessLogIdGetter call")
       }
     }
   }

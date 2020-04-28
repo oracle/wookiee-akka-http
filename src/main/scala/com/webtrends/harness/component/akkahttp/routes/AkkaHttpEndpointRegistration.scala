@@ -37,16 +37,18 @@ trait AkkaHttpEndpointRegistration {
   def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
                                                                path: String,
                                                                method: HttpMethod,
-                                                               enableCors: Boolean,
-                                                               defaultHeaders: Seq[HttpHeader],
                                                                endpointType: EndpointType.EndpointType,
                                                                requestHandler: AkkaHttpRequest => Future[T],
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
-                                                               rejectionHandler: PartialFunction[Throwable, Route]
+                                                               rejectionHandler: PartialFunction[Throwable, Route],
+                                                               accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
+                                                               enableCors: Boolean = false,
+                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
                                                               )(implicit ec: ExecutionContext, log: Logger, to: Timeout): Unit = {
       addCommand(name, businessLogic).map { ref =>
-        val route = RouteGenerator.makeHttpRoute(path, method, defaultHeaders, enableCors, ref, requestHandler, responseHandler, rejectionHandler)
+        val route = RouteGenerator
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, rejectionHandler, accessLogIdGetter, enableCors, defaultHeaders)
 
         endpointType match {
           case EndpointType.INTERNAL =>
