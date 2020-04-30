@@ -40,35 +40,11 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
   implicit val logger: Logger = Logger.getLogger(getClass.getName)
 
 
-  val failMessage = "purposeful fail"
-  def simpleFunction(in: AkkaHttpRequest): Future[RequestInfo] =
-    Future.successful(RequestInfo(in.path, in.method.toString, in.requestHeaders, in.segments, in.queryParams, None))
-  def exceptionFunction(in: AkkaHttpRequest): Future[RequestInfo] = Future.failed(new Exception(failMessage))
-  def messageFunction(in: AkkaHttpRequest): Future[String] = Future.successful("Welcome to Wookiee-Akka-Http")
+  import RouteGeneratorTest._
 
   def actorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(simpleFunction))
   def messageActorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(messageFunction))
   def exceptionActorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(exceptionFunction))
-
-  def requestHandler(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.successful(req)
-  def responseHandler200(resp: RequestInfo): Route = complete(StatusCodes.OK, resp)
-  def rejectionHandler: PartialFunction[Throwable, Route] = {
-    case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
-    case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
-    case t: Throwable => complete(StatusCodes.InternalServerError, t.getMessage)
-  }
-  def errorOnResponse(echoed: RequestInfo): Route = {
-    if (true) throw new Exception(failMessage)
-    complete(StatusCodes.InternalServerError, "should not have returned route")
-  }
-
-  def requestHandlerWithException(req: AkkaHttpRequest): Future[AkkaHttpRequest] = throw new Exception(failMessage)
-  def requestHandlerWithAuthenticationFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(NotAuthorized(failMessage))
-  def requestHandlerWithUnknownFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(new IllegalArgumentException(failMessage))
-  def rejectionHandlerWithLimitedScope: PartialFunction[Throwable, Route] = {
-    case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
-    case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
-  }
 
   "RouteGenerator " should {
 
@@ -215,5 +191,34 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
         assert(entityAs[String] contains StatusCodes.InternalServerError.defaultMessage)
       }
     }
+  }
+}
+
+object RouteGeneratorTest {
+
+  val failMessage = "purposeful fail"
+  def simpleFunction(in: AkkaHttpRequest): Future[RequestInfo] =
+    Future.successful(RequestInfo(in.path, in.method.toString, in.requestHeaders, in.segments, in.queryParams, None))
+  def exceptionFunction(in: AkkaHttpRequest): Future[RequestInfo] = Future.failed(new Exception(failMessage))
+  def messageFunction(in: AkkaHttpRequest): Future[String] = Future.successful("Welcome to Wookiee-Akka-Http")
+
+  def requestHandler(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.successful(req)
+  def responseHandler200(resp: RequestInfo): Route = complete(StatusCodes.OK, resp)
+  def rejectionHandler: PartialFunction[Throwable, Route] = {
+    case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
+    case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
+    case t: Throwable => complete(StatusCodes.InternalServerError, t.getMessage)
+  }
+  def errorOnResponse(echoed: RequestInfo): Route = {
+    if (true) throw new Exception(failMessage)
+    complete(StatusCodes.InternalServerError, "should not have returned route")
+  }
+
+  def requestHandlerWithException(req: AkkaHttpRequest): Future[AkkaHttpRequest] = throw new Exception(failMessage)
+  def requestHandlerWithAuthenticationFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(NotAuthorized(failMessage))
+  def requestHandlerWithUnknownFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(new IllegalArgumentException(failMessage))
+  def rejectionHandlerWithLimitedScope: PartialFunction[Throwable, Route] = {
+    case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
+    case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
   }
 }
