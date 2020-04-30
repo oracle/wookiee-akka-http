@@ -23,7 +23,7 @@ case class ErrorEntity(error: String)
 case class RequestInfo(path: String,
                        verb: String,
                        headers: Map[String, String],
-                       routeParams: Map[String, String],
+                       segments: List[String],
                        queryParams: Map[String, String],
                        body: Option[String])
 

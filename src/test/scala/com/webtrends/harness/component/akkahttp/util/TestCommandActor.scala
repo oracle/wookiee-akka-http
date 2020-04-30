@@ -14,22 +14,23 @@
  *  limitations under the License.
  */
 
-package com.webtrends.harness.component.akkahttp
+package com.webtrends.harness.component.akkahttp.util
 
 import akka.actor.Props
 import com.webtrends.harness.command.Command
-import com.webtrends.harness.component.akkahttp.routes.AkkaHttpRequest
 
 import scala.concurrent.Future
+import scala.reflect.ClassTag
 
-class SimpleCommandActor extends Command[AkkaHttpRequest, AkkaHttpRequest] {
-  override def execute(input: AkkaHttpRequest): Future[AkkaHttpRequest] = {
-    Future.successful(input)
+object TestCommandActor {
+
+  def createCommandActor[T <: Product : ClassTag, U <: Any : ClassTag](businessLogic: T => Future[U]): Props = {
+    class CommandActor extends Command[T, U] {
+      override def execute(input: T): Future[U] = {
+        businessLogic(input)
+      }
+    }
+    Props(new CommandActor())
   }
+
 }
-
-object SimpleCommandActor {
-  def apply(): Props = Props(new SimpleCommandActor())
-}
-
-
