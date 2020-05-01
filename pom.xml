@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
+<<<<<<< HEAD
   ~  Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
   ~
   ~  Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +14,10 @@
   ~  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   ~  See the License for the specific language governing permissions and
   ~  limitations under the License.
+=======
+  ~ Copyright (c) 2020. Oracle
+  ~ @author Spencer Wood
+>>>>>>> 2.0.x
   -->
 
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -28,8 +33,8 @@
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <akka.stream.version>2.5.23</akka.stream.version>
-        <akka.http.version>10.1.1</akka.http.version>
-<!--        <wookiee.core.version>1.3.41</wookiee.core.version>-->
+        <akka.http.version>10.1.10</akka.http.version>
+<!--        <wookiee.core.version>1.3.44</wookiee.core.version>-->
         <wookiee-metrics.version>2.5.16</wookiee-metrics.version>
         <scala.version>2.12.10</scala.version>
         <scala.artifact.version>2.12</scala.artifact.version>
@@ -106,7 +111,7 @@
         <dependency>
             <groupId>ch.megard</groupId>
             <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
-            <version>0.2.2</version>
+            <version>0.4.2</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
