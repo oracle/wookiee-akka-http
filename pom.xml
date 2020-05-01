@@ -51,11 +51,6 @@
         </repository>
     </repositories>
     <distributionManagement>
-        <site>
-            <id>${project.artifactId}-site</id>
-            <name>Deployment through GitHub's site plugin</name>
-            <url>${project.version}</url>
-        </site>
         <repository>
             <id>oss-jfrog-artifactory</id>
             <name>oss-jfrog-artifactory-releases</name>
@@ -344,14 +339,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
                 <version>2.7</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-site-plugin</artifactId>
-                <version>3.4</version>
-                <configuration>
-                    <skipDeploy>true</skipDeploy>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
