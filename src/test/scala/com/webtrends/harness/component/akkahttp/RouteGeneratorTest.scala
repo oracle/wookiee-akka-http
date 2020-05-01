@@ -24,8 +24,9 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.Timeout
+import com.webtrends.harness.command.CommandFactory
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, RouteGenerator}
-import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized, RequestInfo, TestCommandActor}
+import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized, RequestInfo}
 import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
@@ -42,9 +43,9 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
   import RouteGeneratorTest._
 
-  def actorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(simpleFunction))
-  def messageActorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(messageFunction))
-  def exceptionActorRef = actorSystem.actorOf(TestCommandActor.createCommandActor(exceptionFunction))
+  def actorRef = actorSystem.actorOf(CommandFactory.createCommand(simpleFunction))
+  def messageActorRef = actorSystem.actorOf(CommandFactory.createCommand(messageFunction))
+  def exceptionActorRef = actorSystem.actorOf(CommandFactory.createCommand(exceptionFunction))
 
   "RouteGenerator " should {
 
