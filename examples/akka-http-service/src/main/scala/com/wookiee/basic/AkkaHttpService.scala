@@ -36,8 +36,7 @@ case class NotAuthorized(message: String) extends Exception
 case class Forbidden(message: String) extends Exception
 
 class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
-  implicit val timeout = Timeout(2 seconds)
-  implicit val logger: Logger = Logger.getLogger(getClass.getName)
+  implicit val timeout: Timeout = Timeout(2.seconds)
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
   implicit val sys: ActorSystem = context.system
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -53,7 +52,7 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       echo[Message],
       stringResponse,
       authorizationRejections,
-      Some(_ => "myId")
+      _ => "myId"
     )
 
     // POST endpoint

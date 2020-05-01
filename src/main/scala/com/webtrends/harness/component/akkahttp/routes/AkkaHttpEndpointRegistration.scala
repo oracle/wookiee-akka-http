@@ -19,8 +19,11 @@ package com.webtrends.harness.component.akkahttp.routes
 import akka.http.scaladsl.model.{HttpHeader, HttpMethod}
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
+import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
-import com.webtrends.harness.logging.Logger
+import com.webtrends.harness.component.akkahttp.AkkaHttpManager
+import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger}
+import com.webtrends.harness.utils.ConfigUtil
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
@@ -31,7 +34,12 @@ object EndpointType extends Enumeration {
 }
 
 trait AkkaHttpEndpointRegistration {
-  this: CommandHelper =>
+  this: CommandHelper with ActorLoggingAdapter with HActor =>
+
+  private val accessLoggingEnabled = ConfigUtil.getDefaultValue(
+    s"${AkkaHttpManager.ComponentName}.access-logging.enabled", config.getBoolean, true)
+  if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
+  implicit val logger: Logger = log
 
   // TODO: new prop for enableHealthcheck?
   def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
@@ -42,13 +50,15 @@ trait AkkaHttpEndpointRegistration {
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
                                                                rejectionHandler: PartialFunction[Throwable, Route],
-                                                               accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
+                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
                                                                enableCors: Boolean = false,
                                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
-                                                              )(implicit ec: ExecutionContext, log: Logger, to: Timeout): Unit = {
-      addCommand(name, businessLogic).map { ref =>
+                                                              )(implicit ec: ExecutionContext): Unit = {
+
+    val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
+    addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, rejectionHandler, accessLogIdGetter, enableCors, defaultHeaders)
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, rejectionHandler, accessLogger, enableCors, defaultHeaders)
 
         endpointType match {
           case EndpointType.INTERNAL =>
