@@ -62,6 +62,7 @@ case class AkkaHttpRequest(
                             method: HttpMethod,
                             protocol: HttpProtocol,
                             requestHeaders: Map[String, String],
+                            cookies: Map[String, String],
                             queryParams: Map[String, String],
                             time: Long,
                             requestBody: Option[RequestEntity] = None
@@ -90,8 +91,9 @@ object RouteGenerator {
               extractRequest { request =>
                 val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
                 val httpEntity = getPayload(method, request)
+                // TODO need to extract cookies and pass them to AkkaHttpRequest tobe used in auth stuff
                 val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
-                  reqHeaders, paramMap, System.currentTimeMillis(), httpEntity)
+                  reqHeaders, Map(), paramMap, System.currentTimeMillis(), httpEntity)
                 // http request handlers should be built with authorization in mind.
                 onComplete((for {
                   requestObjs <- requestHandler(reqWrapper)
