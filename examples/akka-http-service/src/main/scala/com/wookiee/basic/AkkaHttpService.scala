@@ -17,23 +17,21 @@
 package com.wookiee.basic
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.{HttpMethods, StatusCodes}
-import akka.http.scaladsl.server.Directives.complete
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model.HttpMethods
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointType, RouteGenerator}
-import com.webtrends.harness.logging.Logger
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, EndpointType}
 import com.webtrends.harness.service.Service
+import com.wookiee.basic.handlers.Auth.rejectReport1Calls
+import com.wookiee.basic.handlers.Logic.echo
+import com.wookiee.basic.handlers.Objects.Message
+import com.wookiee.basic.handlers.RequestParsers.{reqToHello, reqToPayloadMessage, reqToRouteParams}
+import com.wookiee.basic.handlers.Rejections.authorizationRejections
+import com.wookiee.basic.handlers.Responses.{paramsResponse, stringResponse}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.ext.JodaTimeSerializers
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
-
-case class Message(message: String)
-case class NotAuthorized(message: String) extends Exception
-case class Forbidden(message: String) extends Exception
 
 class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
   implicit val timeout: Timeout = Timeout(2.seconds)
@@ -100,37 +98,5 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       paramsResponse,
       authorizationRejections
     )
-  }
-
-  def reqToHello(r: AkkaHttpRequest): Future[Message] = Future.successful(Message("Hello World"))
-  def reqToPayloadMessage(r: AkkaHttpRequest): Future[Message] =
-    RouteGenerator.entityToString(r.requestBody.get).map(Message)
-  def reqToRouteParams(r: AkkaHttpRequest): Future[List[String]] = {
-    Future.successful(r.segments)
-  }
-  def rejectReport1Calls(r: AkkaHttpRequest): Future[List[String]] = {
-    val segments = r.segments
-    if (segments.headOption.contains("1")) {
-      Future.failed(Forbidden("Access to report 1 forbidden"))
-    } else {
-      Future.successful(r.segments)
-    }
-  }
-
-  def echo[T](x: T): Future[T] = {
-    Future.successful(x)
-  }
-
-  def stringResponse(result: Message): Route = {
-    complete(StatusCodes.OK, result.message)
-  }
-  def paramsResponse(result: Seq[String]): Route = {
-    complete(StatusCodes.OK, result.mkString(","))
-  }
-  def authorizationRejections: PartialFunction[Throwable, Route] = {
-    case ex: NotAuthorized =>
-      complete(StatusCodes.Unauthorized, ex.message)
-    case ex: Forbidden =>
-      complete(StatusCodes.Forbidden, ex.message)
   }
 }

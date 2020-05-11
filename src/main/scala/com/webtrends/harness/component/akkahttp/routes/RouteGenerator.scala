@@ -43,18 +43,6 @@ trait AkkaHttpParameters
 trait AkkaHttpPathSegments
 trait AkkaHttpAuth
 
-// TODO: Get rid of these
-// Use these to generically extract values from a query string
-case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
-case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
-case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
-case class Holder4(_1: String, _2: String, _3: String, _4: String)
-  extends Product4[String, String, String, String] with AkkaHttpPathSegments
-case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
-  extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
-case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
-  extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
-
 case class AkkaHttpRequest(
                             path: String,
                           // List, not Seq as Seq is not <: Product and route params are common command inputs
@@ -68,14 +56,12 @@ case class AkkaHttpRequest(
                           )
 
 object RouteGenerator {
-  // TODO: Add new rejection/exceptionHandler to recover with as new parameter
-  // TODO: Verify catch all 500 match works
   def makeHttpRoute[T <: Product : ClassTag, V](path: String,
                                                 method: HttpMethod,
                                                 commandRef: ActorRef,
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
-                                                rejectionHandler: PartialFunction[Throwable, Route],
+                                                errorHandler: PartialFunction[Throwable, Route],
                                                 accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
                                                 enableCors: Boolean = false,
                                                 defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
@@ -96,14 +82,14 @@ object RouteGenerator {
                 onComplete((for {
                   requestObjs <- requestHandler(reqWrapper)
                   commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                } yield responseHandler(commandResult.asInstanceOf[V])).recover(rejectionHandler)) {
+                } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler)) {
                   case Success(route: Route) =>
                     mapRouteResult {
                       case Complete(response) =>
                         accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
                         Complete(response)
                       case Rejected(rejections) =>
-                        // TODO: Current expectation is that user's rejectionHandler should already handle rejections before this point
+                        // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
                         ???
                     }(route)
                   case Failure(ex: Throwable) =>
@@ -121,9 +107,20 @@ object RouteGenerator {
     }
   }
 
-  // This is horrible, but Akka-Http wrote their types in such a way that we can't figure out a cleaner way around this.
-  // PathMatchers currently tied to objects typed explicitly by the number of matches a path needs to accomplish.
-  // Don't expose this, just use the following conversion method to change it to something actually useful.
+  // TODO: #129
+  // Use these to generically extract values from a query string
+  private case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
+  private case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
+  private case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
+  private case class Holder4(_1: String, _2: String, _3: String, _4: String)
+    extends Product4[String, String, String, String] with AkkaHttpPathSegments
+  private case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
+    extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+  private case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
+    extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
+
+  // TODO: #129
+  // Don't expose this, just use the paramHoldersToList to change it to something actually useful.
   protected[routes] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
     val segs = path.split("/").filter(_.nonEmpty).toSeq
     var segCount = 0
@@ -174,6 +171,18 @@ object RouteGenerator {
     }
   }
 
+  // TODO: #129
+  private def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
+    segments match {
+      case Holder1(a) => List(a)
+      case Holder2(a, b) => List(a, b)
+      case Holder3(a, b, c) => List(a, b, c)
+      case Holder4(a, b, c, d) => List(a, b, c, d)
+      case Holder5(a, b, c, d, e) => List(a, b, c, d, e)
+      case Holder6(a, b, c, d, e, f) => List(a, b, c, d, e, f)
+      case _ => List()
+    }
+
   def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
     case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
     case _ => None
@@ -186,18 +195,6 @@ object RouteGenerator {
       pass
     }
   }
-
-  // TODO: Replace as soon as you can figure out a generic way to define variable length path matchers
-  private def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
-    segments match {
-      case Holder1(a) => List(a)
-      case Holder2(a, b) => List(a, b)
-      case Holder3(a, b, c) => List(a, b, c)
-      case Holder4(a, b, c, d) => List(a, b, c, d)
-      case Holder5(a, b, c, d, e) => List(a, b, c, d, e)
-      case Holder6(a, b, c, d, e, f) => List(a, b, c, d, e, f)
-      case _ => List()
-    }
 
   def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
@@ -217,10 +214,4 @@ object RouteGenerator {
     CorsSettings.defaultSettings.exposedHeaders,
     CorsSettings.defaultSettings.maxAge
   )
-
-  def entityToString(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[String] =
-    Unmarshaller.stringUnmarshaller(req)
-
-  def entityToBytes(req: RequestEntity)(implicit ec: ExecutionContext, mat: Materializer): Future[Array[Byte]] =
-    Unmarshaller.byteArrayUnmarshaller(req)
 }

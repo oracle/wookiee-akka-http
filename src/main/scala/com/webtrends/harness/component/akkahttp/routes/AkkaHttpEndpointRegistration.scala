@@ -18,7 +18,6 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import akka.http.scaladsl.model.{HttpHeader, HttpMethod}
 import akka.http.scaladsl.server.Route
-import akka.util.Timeout
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
@@ -30,7 +29,7 @@ import scala.reflect.ClassTag
 
 object EndpointType extends Enumeration {
   type EndpointType = Value
-  val INTERNAL, EXTERNAL, WEBSOCKET = Value
+  val INTERNAL, EXTERNAL, BOTH = Value
 }
 
 trait AkkaHttpEndpointRegistration {
@@ -41,7 +40,6 @@ trait AkkaHttpEndpointRegistration {
   if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
   implicit val logger: Logger = log
 
-  // TODO: new prop for enableHealthcheck?
   def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
                                                                path: String,
                                                                method: HttpMethod,
@@ -49,7 +47,7 @@ trait AkkaHttpEndpointRegistration {
                                                                requestHandler: AkkaHttpRequest => Future[T],
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
-                                                               rejectionHandler: PartialFunction[Throwable, Route],
+                                                               errorHandler: PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
                                                                enableCors: Boolean = false,
                                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
@@ -58,16 +56,16 @@ trait AkkaHttpEndpointRegistration {
     val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
     addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, rejectionHandler, accessLogger, enableCors, defaultHeaders)
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, enableCors, defaultHeaders)
 
         endpointType match {
           case EndpointType.INTERNAL =>
             InternalAkkaHttpRouteContainer.addRoute(route)
           case EndpointType.EXTERNAL =>
             ExternalAkkaHttpRouteContainer.addRoute(route)
-          case EndpointType.WEBSOCKET =>
-            // TODO: not needed yet
-            ???
+          case EndpointType.BOTH =>
+            ExternalAkkaHttpRouteContainer.addRoute(route)
+            InternalAkkaHttpRouteContainer.addRoute(route)
         }
       }
     }
