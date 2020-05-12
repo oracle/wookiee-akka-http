@@ -28,7 +28,7 @@
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <akka.stream.version>2.5.23</akka.stream.version>
-        <akka.http.version>10.1.10</akka.http.version>
+        <akka.http.version>10.1.12</akka.http.version>
         <wookiee.core.version>2.0.0-RC2</wookiee.core.version>
         <wookiee-metrics.version>2.5.16</wookiee-metrics.version>
         <scala.version>2.12.10</scala.version>
@@ -102,7 +102,7 @@
         <dependency>
             <groupId>ch.megard</groupId>
             <artifactId>akka-http-cors_${scala.artifact.version}</artifactId>
-            <version>0.4.2</version>
+            <version>0.4.3</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>

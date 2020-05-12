@@ -22,9 +22,7 @@ import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
-import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.pattern.ask
-import akka.stream.Materializer
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
@@ -205,13 +203,6 @@ object RouteGenerator {
     case HttpMethods.PATCH => patch
   }
 
-  def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings = CorsSettings.Default(
-    CorsSettings.defaultSettings.allowGenericHttpRequests,
-    CorsSettings.defaultSettings.allowCredentials,
-    CorsSettings.defaultSettings.allowedOrigins,
-    CorsSettings.defaultSettings.allowedHeaders,
-    allowedMethods,
-    CorsSettings.defaultSettings.exposedHeaders,
-    CorsSettings.defaultSettings.maxAge
-  )
+  private def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
+    CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
 }
