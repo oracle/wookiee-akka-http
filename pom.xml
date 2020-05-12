@@ -70,7 +70,7 @@
         </dependency>
         <dependency>
             <groupId>com.webtrends</groupId>
-            <artifactId>wookiee-test_2.12</artifactId>
+            <artifactId>wookiee-test_${scala.artifact.version}</artifactId>
             <version>${wookiee.core.version}</version>
         </dependency>
 
