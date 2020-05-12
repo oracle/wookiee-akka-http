@@ -3,3 +3,4 @@ target
 dist
 .idea
 .DS_Store
+lib/*.jar
