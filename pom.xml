@@ -27,7 +27,7 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <akka.stream.version>2.5.23</akka.stream.version>
+        <akka.stream.version>2.6.5</akka.stream.version>
         <akka.http.version>10.1.12</akka.http.version>
         <wookiee.core.version>2.0.0-RC2</wookiee.core.version>
         <wookiee-metrics.version>2.5.16</wookiee-metrics.version>
