@@ -87,7 +87,7 @@
         <dependency>
             <groupId>de.heikoseeberger</groupId>
             <artifactId>akka-http-json4s_${scala.artifact.version}</artifactId>
-            <version>1.31.0</version>
+            <version>1.32.0</version>
         </dependency>
         <dependency>
             <groupId>org.json4s</groupId>
