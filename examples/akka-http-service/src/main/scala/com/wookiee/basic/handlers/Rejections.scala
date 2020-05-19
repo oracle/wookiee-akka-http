@@ -19,10 +19,11 @@ package com.wookiee.basic.handlers
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
+import com.webtrends.harness.component.akkahttp.routes.AkkaHttpRequest
 import com.wookiee.basic.handlers.Objects.{Forbidden, NotAuthorized}
 
 object Rejections {
-  def authorizationRejections: PartialFunction[Throwable, Route] = {
+  def authorizationRejections(request: AkkaHttpRequest): PartialFunction[Throwable, Route] = {
     case ex: NotAuthorized =>
       complete(StatusCodes.Unauthorized, ex.message)
     case ex: Forbidden =>

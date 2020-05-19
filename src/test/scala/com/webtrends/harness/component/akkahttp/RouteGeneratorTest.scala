@@ -16,6 +16,8 @@
 
 package com.webtrends.harness.component.akkahttp
 
+import java.util.Locale
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.{HttpMethods, _}
@@ -193,6 +195,24 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       }
     }
   }
+
+  "Request Locales" should {
+    "accept-language header with multiple languages" in {
+      val locales = RouteGenerator.requestLocales(Map("accept-language" -> "ru;q=0.9, de, en;q=0.7"))
+      assert(locales.size == 3)
+      assert(locales(0) == Locale.forLanguageTag("de"))
+      assert(locales(1) == Locale.forLanguageTag("ru"))
+      assert(locales(2) == Locale.forLanguageTag("en"))
+    }
+    "accept-language header with empty string" in {
+      val locales = RouteGenerator.requestLocales(Map("accept-language" -> ""))
+      assert(locales.isEmpty)
+    }
+    "requestLocales with out accept-language header" in {
+      val locales = RouteGenerator.requestLocales(Map.empty)
+      assert(locales.isEmpty)
+    }
+  }
 }
 
 object RouteGeneratorTest {
@@ -205,7 +225,7 @@ object RouteGeneratorTest {
 
   def requestHandler(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.successful(req)
   def responseHandler200(resp: RequestInfo): Route = complete(StatusCodes.OK, resp)
-  def rejectionHandler: PartialFunction[Throwable, Route] = {
+  def rejectionHandler(request:AkkaHttpRequest): PartialFunction[Throwable, Route] = {
     case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
     case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
     case t: Throwable => complete(StatusCodes.InternalServerError, t.getMessage)
@@ -218,7 +238,7 @@ object RouteGeneratorTest {
   def requestHandlerWithException(req: AkkaHttpRequest): Future[AkkaHttpRequest] = throw new Exception(failMessage)
   def requestHandlerWithAuthenticationFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(NotAuthorized(failMessage))
   def requestHandlerWithUnknownFailure(req: AkkaHttpRequest): Future[AkkaHttpRequest] = Future.failed(new IllegalArgumentException(failMessage))
-  def rejectionHandlerWithLimitedScope: PartialFunction[Throwable, Route] = {
+  def rejectionHandlerWithLimitedScope(request: AkkaHttpRequest): PartialFunction[Throwable, Route] = {
     case ex: NotAuthorized => complete(StatusCodes.Unauthorized, ex.message)
     case ex: Forbidden => complete(StatusCodes.Forbidden, ex.message)
   }
