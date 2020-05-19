@@ -16,6 +16,9 @@
 
 package com.webtrends.harness.component.akkahttp.routes
 
+import java.util.Locale
+import java.util.Locale.LanguageRange
+
 import akka.actor.ActorRef
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives.{path => p, _}
@@ -35,6 +38,7 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
+import scala.collection.JavaConverters._
 
 
 trait AkkaHttpParameters
@@ -50,6 +54,7 @@ case class AkkaHttpRequest(
                             requestHeaders: Map[String, String],
                             queryParams: Map[String, String],
                             time: Long,
+                            locales: List[Locale],
                             requestBody: Option[RequestEntity] = None
                           )
 
@@ -59,7 +64,7 @@ object RouteGenerator {
                                                 commandRef: ActorRef,
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
-                                                errorHandler: PartialFunction[Throwable, Route],
+                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                 accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
                                                 enableCors: Boolean = false,
                                                 defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
@@ -74,13 +79,14 @@ object RouteGenerator {
               extractRequest { request =>
                 val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
                 val httpEntity = getPayload(method, request)
+                val locales = requestLocales(reqHeaders)
                 val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
-                  reqHeaders, paramMap, System.currentTimeMillis(), httpEntity)
+                  reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
                 // http request handlers should be built with authorization in mind.
                 onComplete((for {
                   requestObjs <- requestHandler(reqWrapper)
                   commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler)) {
+                } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler(reqWrapper))) {
                   case Success(route: Route) =>
                     mapRouteResult {
                       case Complete(response) =>
@@ -205,4 +211,12 @@ object RouteGenerator {
 
   private def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
     CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
+
+   def requestLocales(headers: Map[String, String]): List[Locale] =
+     headers.get("accept-language") match {
+      case Some(localeString) if localeString.nonEmpty => LanguageRange.parse(localeString).asScala
+        .map(language => Locale.forLanguageTag(language.getRange)).toList
+      case _ => Nil
+    }
+
 }

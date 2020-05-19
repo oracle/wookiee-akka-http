@@ -47,7 +47,7 @@ trait AkkaHttpEndpointRegistration {
                                                                requestHandler: AkkaHttpRequest => Future[T],
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
-                                                               errorHandler: PartialFunction[Throwable, Route],
+                                                               errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
                                                                enableCors: Boolean = false,
                                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
