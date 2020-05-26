@@ -24,7 +24,7 @@
         <akka.http.version>10.1.12</akka.http.version>
         <scala.version>2.12.10</scala.version>
         <scala.artifact.version>2.12</scala.artifact.version>
-        <scalatest.version>3.0.8</scalatest.version>
+        <scalatest.version>3.1.2</scalatest.version>
     </properties>
 
     <name>Akka Http Example Wookiee Service</name>
@@ -56,6 +56,12 @@
             <version>2.0-SNAPSHOT</version>
         </dependency>
         <dependency>
+            <groupId>com.webtrends</groupId>
+            <artifactId>wookiee-test_${scala.artifact.version}</artifactId>
+            <version>2.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-http_${scala.artifact.version}</artifactId>
             <version>${akka.http.version}</version>
@@ -63,17 +69,17 @@
         <dependency>
             <groupId>de.heikoseeberger</groupId>
             <artifactId>akka-http-json4s_${scala.artifact.version}</artifactId>
-            <version>1.15.0</version>
+            <version>1.32.0</version>
         </dependency>
         <dependency>
             <groupId>org.json4s</groupId>
             <artifactId>json4s-jackson_${scala.artifact.version}</artifactId>
-            <version>3.5.0</version>
+            <version>3.6.8</version>
         </dependency>
         <dependency>
             <groupId>org.json4s</groupId>
             <artifactId>json4s-ext_${scala.artifact.version}</artifactId>
-            <version>3.5.0</version>
+            <version>3.6.0</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
@@ -108,7 +114,7 @@
         <dependency>
             <groupId>com.webtrends</groupId>
             <artifactId>wookiee-metrics_${scala.artifact.version}</artifactId>
-            <version>2.5.16</version>
+            <version>3.0-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.scalatest</groupId>
