@@ -18,6 +18,7 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import akka.http.scaladsl.model.{HttpHeader, HttpMethod}
 import akka.http.scaladsl.server.Route
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
@@ -49,14 +50,14 @@ trait AkkaHttpEndpointRegistration {
                                                                responseHandler: U => Route,
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               enableCors: Boolean = false,
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
+                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                               corsSettings:Option[CorsSettings] = None
                                                               )(implicit ec: ExecutionContext): Unit = {
 
     val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
     addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, enableCors, defaultHeaders)
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, defaultHeaders, corsSettings)
 
         endpointType match {
           case EndpointType.INTERNAL =>

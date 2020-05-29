@@ -24,8 +24,11 @@ import akka.http.scaladsl.model.{HttpMethods, _}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
+import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.Timeout
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
 import com.webtrends.harness.command.CommandFactory
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, RouteGenerator}
 import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized, RequestInfo}
@@ -211,6 +214,33 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
     "requestLocales with out accept-language header" in {
       val locales = RouteGenerator.requestLocales(Map.empty)
       assert(locales.isEmpty)
+    }
+  }
+
+  "Cors settings" should {
+    val whiteListOrigin = HttpOrigin("http://example.com")
+    val corsSettings = CorsSettings.defaultSettings
+      .withAllowedOrigins(HttpOriginMatcher(whiteListOrigin))
+    "Allows a request with whitelisted origin" in {
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, corsSettings = Some(corsSettings))
+      Get("/corsTest")~> Origin(whiteListOrigin) ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[String] contains "corsTest")
+      }
+    }
+    "Forbidden the request with unknown origin" in {
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, corsSettings = Some(corsSettings))
+      Get("/corsTest") ~> Origin(HttpOrigin("http://unknown.com")) ~> r ~> check {
+        assert(status == StatusCodes.Forbidden)
+        assert(entityAs[String] contains "CORS: invalid origin 'http://unknown.com'")
+      }
+    }
+    "Route with No Cors settings  must allow any origin" in {
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      Get("/corsTest")~> Origin(HttpOrigin("http://unknown.com")) ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[String] contains "corsTest")
+      }
     }
   }
 }

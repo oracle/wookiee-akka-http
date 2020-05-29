@@ -25,20 +25,21 @@ import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
 import akka.util.Timeout
+import ch.megard.akka.http.cors.javadsl
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.logging.Logger
 
+import scala.collection.JavaConverters._
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
-import scala.collection.JavaConverters._
 
 
 trait AkkaHttpParameters
@@ -66,14 +67,14 @@ object RouteGenerator {
                                                 responseHandler: V => Route,
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                 accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
-                                                enableCors: Boolean = false,
-                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
+                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                corsSettings: Option[CorsSettings] = None)
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
-        corsSupport(method, enableCors) {
+        corsSupport(method, corsSettings) {
           httpMethod(method) {
             parameterMap { paramMap: Map[String, String] =>
               extractRequest { request =>
@@ -192,13 +193,12 @@ object RouteGenerator {
     case _ => None
   }
 
-  private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
-    if (enableCors) {
-      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
-    } else {
-      pass
+  private def corsSupport(method: HttpMethod, corsSettings: Option[CorsSettings]): Directive0 =
+    corsSettings match {
+      case Some(cors) => handleRejections(corsRejectionHandler) &
+        CorsDirectives.cors(cors.withAllowedMethods(immutable.Seq(method)))
+      case None => pass
     }
-  }
 
   def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
@@ -209,8 +209,6 @@ object RouteGenerator {
     case HttpMethods.PATCH => patch
   }
 
-  private def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
-    CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
 
    def requestLocales(headers: Map[String, String]): List[Locale] =
      headers.get("accept-language") match {
@@ -218,5 +216,15 @@ object RouteGenerator {
         .map(language => Locale.forLanguageTag(language.getRange)).toList
       case _ => Nil
     }
+
+  // Cors rejection handler to return Forbidden response
+  private def corsRejectionHandler: RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handleAll[javadsl.CorsRejection] { rejections =>
+        val causes = rejections.map(_.cause.description).mkString(", ")
+        complete((StatusCodes.Forbidden, s"CORS: $causes"))
+      }
+      .result()
 
 }
