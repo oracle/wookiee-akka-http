@@ -50,9 +50,8 @@ trait AkkaHttpEndpointRegistration {
                                                                responseHandler: U => Route,
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                               corsSettings:Option[CorsSettings] = None
-                                                              )(implicit ec: ExecutionContext): Unit = {
+                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
+                                                              )(implicit ec: ExecutionContext, corsSettings: Option[CorsSettings]= None): Unit = {
 
     val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
     addCommand(name, businessLogic).map { ref =>
