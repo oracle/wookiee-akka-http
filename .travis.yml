@@ -43,6 +43,7 @@ script:
       if [ "$TRAVIS_TAG" != "" ]; then
         mvn versions:set -DnewVersion="$TRAVIS_TAG"
       else
+        echo `mvn org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate -Dexpression=project.version -q -DforceStdout | sed "s/SNAPSHOT/$TRAVIS_BRANCH-SNAPSHOT/"`
         mvn versions:set -DnewVersion=`mvn org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate -Dexpression=project.version -q -DforceStdout | sed "s/SNAPSHOT/$TRAVIS_BRANCH-SNAPSHOT/"`
       fi
 
