@@ -21,6 +21,7 @@ import akka.http.scaladsl.server.Route
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
+import com.webtrends.harness.component.akkahttp.routes.EndpointType.EndpointType
 import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger}
 import com.webtrends.harness.utils.ConfigUtil
 
@@ -32,6 +33,30 @@ object EndpointType extends Enumeration {
   val INTERNAL, EXTERNAL, BOTH = Value
 }
 
+case class WookieeEndpointConfig[T <: Product : ClassTag, U: ClassTag](
+                                                                        name: String,
+                                                                        path: String,
+                                                                        method: HttpMethod,
+                                                                        endpointType: EndpointType.EndpointType,
+                                                                        requestHandler: AkkaHttpRequest => Future[T],
+                                                                        businessLogic: T => Future[U],
+                                                                        responseHandler: U => Route,
+                                                                        errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
+                                                                        accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
+                                                                        enableCors: Boolean = false,
+                                                                        defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
+
+abstract class EndpointConfig[T <: Product : ClassTag, U: ClassTag] () {
+  val name: String
+  val path: String
+  val method: HttpMethod
+  val endpointType: EndpointType.EndpointType
+  val requestHandler: AkkaHttpRequest => Future[T]
+  val businessLogic: T => Future[U]
+  val responseHandler: U => Route
+  val errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route]
+}
+
 trait AkkaHttpEndpointRegistration {
   this: CommandHelper with ActorLoggingAdapter with HActor =>
 
@@ -39,6 +64,17 @@ trait AkkaHttpEndpointRegistration {
     s"${AkkaHttpManager.ComponentName}.access-logging.enabled", config.getBoolean, true)
   if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
   implicit val logger: Logger = log
+
+//  def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](config: WookieeEndpointConfig[T, U])(implicit ec: ExecutionContext): Unit = {
+//    addAkkaHttpEndpoint(config.name, config.path, config.method, config.endpointType, config.requestHandler,
+//      config.businessLogic, config.responseHandler, config.errorHandler, config.accessLogIdGetter, config.enableCors,
+//      config.defaultHeaders)
+//  }
+//
+//  def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](config: EndpointConfig[T, U])(implicit ec: ExecutionContext): Unit = {
+//    addAkkaHttpEndpoint(config.name, config.path, config.method, config.endpointType, config.requestHandler,
+//      config.businessLogic, config.responseHandler, config.errorHandler)
+//  }
 
   def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
                                                                path: String,
