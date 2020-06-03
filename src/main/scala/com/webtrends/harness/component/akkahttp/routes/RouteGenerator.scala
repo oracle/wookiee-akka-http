@@ -66,7 +66,7 @@ object RouteGenerator {
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
+                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = Some(_=>"-"),
                                                 defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
                                                 corsSettings: Option[CorsSettings] = None)
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
