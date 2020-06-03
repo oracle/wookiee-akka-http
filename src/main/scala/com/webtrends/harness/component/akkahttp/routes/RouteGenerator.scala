@@ -74,15 +74,15 @@ object RouteGenerator {
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
-        httpMethod(method) {
-          parameterMap { paramMap: Map[String, String] =>
-            extractRequest { request =>
-              val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-              val httpEntity = getPayload(method, request)
-              val locales = requestLocales(reqHeaders)
-              val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
-                reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
-              corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
+        parameterMap { paramMap: Map[String, String] =>
+          extractRequest { request =>
+            val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+            val httpEntity = getPayload(method, request)
+            val locales = requestLocales(reqHeaders)
+            val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
+              reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
+            corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
+              httpMethod(method) {
                 // http request handlers should be built with authorization in mind.
                 onComplete((for {
                   requestObjs <- requestHandler(reqWrapper)

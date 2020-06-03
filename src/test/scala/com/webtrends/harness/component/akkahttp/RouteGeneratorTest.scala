@@ -24,7 +24,7 @@ import akka.http.scaladsl.model.{HttpMethods, _}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
-import akka.http.scaladsl.model.headers.{HttpOrigin, Origin}
+import akka.http.scaladsl.model.headers.{HttpOrigin, Origin, `Access-Control-Allow-Methods`, `Access-Control-Request-Method`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.Timeout
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
@@ -240,6 +240,20 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       Get("/corsTest")~> Origin(HttpOrigin("http://unknown.com")) ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "corsTest")
+      }
+    }
+    "pre flight allow the request with whitelist origin" in {
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, corsSettings = Some(corsSettings))
+      Options("/corsTest") ~> Origin(HttpOrigin("http://example.com")) ~> `Access-Control-Request-Method`(HttpMethods.GET)  ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(response.headers contains `Access-Control-Allow-Methods`(Seq(HttpMethods.GET): _*))
+      }
+    }
+    "pre flight should Forbidden the request with unknown origin" in {
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, corsSettings = Some(corsSettings))
+      Options("/corsTest") ~> Origin(HttpOrigin("http://unknown.com")) ~> `Access-Control-Request-Method`(HttpMethods.GET)  ~> r ~> check {
+        assert(status == StatusCodes.Forbidden)
+        assert(entityAs[String] contains "CORS: invalid origin 'http://unknown.com'")
       }
     }
   }
