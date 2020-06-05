@@ -25,10 +25,11 @@ import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
 import akka.util.Timeout
+import ch.megard.akka.http.cors.javadsl
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
@@ -65,23 +66,23 @@ object RouteGenerator {
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
-                                                enableCors: Boolean = false,
-                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
+                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = Some(_=>"-"),
+                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                corsSettings: Option[CorsSettings] = None)
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
     httpPath { segments: AkkaHttpPathSegments =>
       respondWithHeaders(defaultHeaders: _*) {
-        corsSupport(method, enableCors) {
-          httpMethod(method) {
-            parameterMap { paramMap: Map[String, String] =>
-              extractRequest { request =>
-                val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                val httpEntity = getPayload(method, request)
-                val locales = requestLocales(reqHeaders)
-                val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
-                  reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
+        parameterMap { paramMap: Map[String, String] =>
+          extractRequest { request =>
+            val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+            val httpEntity = getPayload(method, request)
+            val locales = requestLocales(reqHeaders)
+            val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
+              reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
+            corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
+              httpMethod(method) {
                 // http request handlers should be built with authorization in mind.
                 onComplete((for {
                   requestObjs <- requestHandler(reqWrapper)
@@ -192,13 +193,15 @@ object RouteGenerator {
     case _ => None
   }
 
-  private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
-    if (enableCors) {
-      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
-    } else {
-      pass
+  private def corsSupport(method: HttpMethod,
+                          corsSettings: Option[CorsSettings],
+                          request: AkkaHttpRequest,
+                          accessLogIdGetter:Option[AkkaHttpRequest => String]): Directive0 =
+    corsSettings match {
+      case Some(cors) => handleRejections(corsRejectionHandler(request, accessLogIdGetter)) &
+        CorsDirectives.cors(cors.withAllowedMethods(immutable.Seq(method)))
+      case None => pass
     }
-  }
 
   def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
@@ -209,14 +212,21 @@ object RouteGenerator {
     case HttpMethods.PATCH => patch
   }
 
-  private def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
-    CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
-
-   def requestLocales(headers: Map[String, String]): List[Locale] =
+  def requestLocales(headers: Map[String, String]): List[Locale] =
      headers.get("accept-language") match {
       case Some(localeString) if localeString.nonEmpty => LanguageRange.parse(localeString).asScala
         .map(language => Locale.forLanguageTag(language.getRange)).toList
       case _ => Nil
     }
+
+  private def corsRejectionHandler(request: AkkaHttpRequest, accessLogIdGetter:Option[AkkaHttpRequest => String]): RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handleAll[javadsl.CorsRejection] { rejections =>
+        val causes = rejections.map(_.cause.description).mkString(", ")
+        accessLogIdGetter.foreach(g => AccessLog.logAccess(request, g(request), StatusCodes.Forbidden))
+        complete((StatusCodes.Forbidden, s"CORS: $causes"))
+      }
+      .result()
 
 }
