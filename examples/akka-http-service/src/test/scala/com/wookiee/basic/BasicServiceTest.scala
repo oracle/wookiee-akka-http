@@ -10,8 +10,8 @@ import org.scalatest.WordSpecLike
 
 class BasicServiceTest extends WordSpecLike {
   val sys: TestHarness = TestHarness(ConfigFactory.empty(), Some(Map("base" -> classOf[TestService])),
-    Some(Map("testcomponent" -> classOf[TestComponent])), port = 2551)
-  implicit val actorSystem: ActorSystem = TestHarness.system(2551).get
+    Some(Map("testcomponent" -> classOf[TestComponent])))
+  implicit val actorSystem: ActorSystem = sys.system
 
   "BasicService" should {
     "start itself up" in {
