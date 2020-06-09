@@ -142,7 +142,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
 
       Get("/test")
         .withHeaders(List(Origin(notAllowedOrigin)))~> routes.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.BadRequest
+        status mustEqual StatusCodes.Forbidden
       }
     }
   }
@@ -216,7 +216,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       Options("/test") ~>
         Origin(HttpOrigin("http://www.foo.test")) ~>
         `Access-Control-Request-Method`(HttpMethods.GET) ~> routes.reduceLeft(_ ~ _) ~> check {
-        status mustEqual StatusCodes.BadRequest
+        status mustEqual StatusCodes.Forbidden
       }
     }
 

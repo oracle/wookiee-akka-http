@@ -1,6 +1,7 @@
 package com.webtrends.harness.component.akkahttp.methods
 
 import akka.http.scaladsl.marshalling.ToResponseMarshaller
+import akka.http.scaladsl.model.headers.HttpOrigin
 import akka.http.scaladsl.model.{HttpMethod, HttpMethods}
 import akka.http.scaladsl.server.Directives.{entity, path => p, _}
 import akka.http.scaladsl.server._
@@ -22,6 +23,7 @@ import scala.concurrent.Future
 trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
+  override def allOrigins: Seq[HttpOrigin] = Seq()
 
   override protected val corsEnabled: Boolean = true
 
@@ -32,7 +34,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
       .groupBy(_.path)
       .getOrElse(path, List())
       .map(_.method)
-    AkkaHttpCORS.corsSettings(methods)
+    AkkaHttpCORS.corsSettings(methods, allOrigins)
   }
 
   // Process the command, the (String, HttpMethod) inputs will be the from the allPaths Endpoint
