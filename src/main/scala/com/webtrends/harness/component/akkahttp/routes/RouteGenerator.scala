@@ -79,7 +79,7 @@ object RouteGenerator {
             val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
             val httpEntity = getPayload(method, request)
             val locales = requestLocales(reqHeaders)
-            val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
+            val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
               reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
             corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
               httpMethod(method) {
