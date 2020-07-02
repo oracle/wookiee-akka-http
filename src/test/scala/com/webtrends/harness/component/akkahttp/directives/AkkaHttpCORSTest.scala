@@ -217,6 +217,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
         Origin(HttpOrigin("http://www.foo.test")) ~>
         `Access-Control-Request-Method`(HttpMethods.GET) ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.Forbidden
+        entityAs[String] mustEqual "CORS: invalid method 'GET'"
       }
     }
 
