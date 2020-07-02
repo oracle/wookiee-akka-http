@@ -23,7 +23,6 @@ import scala.concurrent.Future
 trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
-  override def allOrigins: Seq[HttpOrigin] = Seq()
 
   override protected val corsEnabled: Boolean = true
 
@@ -34,7 +33,7 @@ trait AkkaHttpMulti extends AkkaHttpBase { this: BaseCommand =>
       .groupBy(_.path)
       .getOrElse(path, List())
       .map(_.method)
-    AkkaHttpCORS.corsSettings(methods, allOrigins)
+    AkkaHttpCORS.corsSettings(methods, allowedOrigins)
   }
 
   // Process the command, the (String, HttpMethod) inputs will be the from the allPaths Endpoint

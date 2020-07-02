@@ -64,12 +64,12 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
 
   // The AkkaHttpCORS trait is provided to enable CORS if desired
   protected val corsEnabled: Boolean = false
-  def allOrigins: Seq[HttpOrigin] =Seq()
+  def allowedOrigins: Seq[HttpOrigin] = Seq()
 
   // Allows setting custom CORS settings by endpoint.
   // Default behavior allows all origins, allows credentials, and allows all methods defined in this Command for the path
   protected def corsSettingsByPath(path: String): CorsSettings = {
-    AkkaHttpCORS.corsSettings(immutable.Seq(method), allOrigins)
+    AkkaHttpCORS.corsSettings(immutable.Seq(method), allowedOrigins)
   }
 
   def corsRejectionHandler: RejectionHandler = {

@@ -60,7 +60,7 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       }
     }
 
-    "Include default response headers when Origin request header is present and command threw an exception" in {
+    "Include default response headers when Origin request header is present and command throw an exception" in {
       var routes = Set.empty[Route]
       new AkkaHttpPost with AkkaHttpCORS with TestBaseCommand {
         override def path: String = "test"
@@ -84,7 +84,6 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
   }
 
   "CORS resource request custom behavior" should {
-
     "Allow Access-Control-Expose-Headers to be added" in {
 
       val exposeHeaders = immutable.Seq(`Content-Type`.name, `X-Forwarded-For`.name)
@@ -141,8 +140,9 @@ class AkkaHttpCORSTest extends WordSpec with PropertyChecks with MustMatchers wi
       }
 
       Get("/test")
-        .withHeaders(List(Origin(notAllowedOrigin)))~> routes.reduceLeft(_ ~ _) ~> check {
+        .withHeaders(List(Origin(notAllowedOrigin))) ~> routes.reduceLeft(_ ~ _) ~> check {
         status mustEqual StatusCodes.Forbidden
+        entityAs[String] mustEqual "CORS: invalid origin 'http://www.d.com'"
       }
     }
   }
