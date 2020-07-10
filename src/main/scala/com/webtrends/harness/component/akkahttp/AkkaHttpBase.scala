@@ -8,13 +8,14 @@ import akka.http.scaladsl.model.HttpHeader.ParsingResult
 import akka.http.scaladsl.model.HttpHeader.ParsingResult.{Error, Ok}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.HttpOrigin
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.directives.{MethodDirectives, PathDirectives}
+import akka.http.scaladsl.server.directives.{BasicDirectives, MethodDirectives, PathDirectives}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
+import ch.megard.akka.http.cors.javadsl
 import akka.util.ByteString
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.typesafe.config.{ConfigObject, ConfigValue}
 import com.webtrends.harness.app.Harness
@@ -63,11 +64,25 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives with AccessLog w
 
   // The AkkaHttpCORS trait is provided to enable CORS if desired
   protected val corsEnabled: Boolean = false
+  def allowedOrigins: Seq[HttpOrigin] = Seq()
 
   // Allows setting custom CORS settings by endpoint.
   // Default behavior allows all origins, allows credentials, and allows all methods defined in this Command for the path
   protected def corsSettingsByPath(path: String): CorsSettings = {
-    AkkaHttpCORS.corsSettings(immutable.Seq(method))
+    AkkaHttpCORS.corsSettings(immutable.Seq(method), allowedOrigins)
+  }
+
+  def corsRejectionHandler: RejectionHandler = {
+    RejectionHandler
+      .newBuilder()
+      .handleAll[javadsl.CorsRejection] { rejections =>
+          val causes = rejections.map(_.cause.description).mkString(", ")
+          BasicDirectives.extractRequest(request => {
+            logAccess(request, CommandBean(Map()), Some(StatusCodes.Forbidden))
+            complete((StatusCodes.Forbidden, s"CORS: $causes"))
+          })
+        }
+      .result()
   }
 
   val parseHeaders: Seq[HttpHeader] = {
