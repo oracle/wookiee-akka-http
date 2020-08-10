@@ -72,37 +72,39 @@ object RouteGenerator {
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
-    httpPath { segments: AkkaHttpPathSegments =>
-      respondWithHeaders(defaultHeaders: _*) {
-        parameterMap { paramMap: Map[String, String] =>
-          extractRequest { request =>
-            val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-            val httpEntity = getPayload(method, request)
-            val locales = requestLocales(reqHeaders)
-            val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
-              reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
-            corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
-              httpMethod(method) {
-                // http request handlers should be built with authorization in mind.
-                onComplete((for {
-                  requestObjs <- requestHandler(reqWrapper)
-                  commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler(reqWrapper))) {
-                  case Success(route: Route) =>
-                    mapRouteResult {
-                      case Complete(response) =>
-                        accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
-                        Complete(response)
-                      case Rejected(rejections) =>
-                        // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
-                        ???
-                    }(route)
-                  case Failure(ex: Throwable) =>
-                    val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
-                      .getOrElse(ex.getClass.getSimpleName)
-                    log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
-                    accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
-                    complete(StatusCodes.InternalServerError, "There was an internal server error.")
+    ignoreTrailingSlash {
+      httpPath { segments: AkkaHttpPathSegments =>
+        respondWithHeaders(defaultHeaders: _*) {
+          parameterMap { paramMap: Map[String, String] =>
+            extractRequest { request =>
+              val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+              val httpEntity = getPayload(method, request)
+              val locales = requestLocales(reqHeaders)
+              val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
+                reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
+              corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
+                httpMethod(method) {
+                  // http request handlers should be built with authorization in mind.
+                  onComplete((for {
+                    requestObjs <- requestHandler(reqWrapper)
+                    commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
+                  } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler(reqWrapper))) {
+                    case Success(route: Route) =>
+                      mapRouteResult {
+                        case Complete(response) =>
+                          accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
+                          Complete(response)
+                        case Rejected(rejections) =>
+                          // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
+                          ???
+                      }(route)
+                    case Failure(ex: Throwable) =>
+                      val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                        .getOrElse(ex.getClass.getSimpleName)
+                      log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
+                      accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
+                      complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                  }
                 }
               }
             }

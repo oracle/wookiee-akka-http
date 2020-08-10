@@ -61,6 +61,13 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
         assert(entityAs[String] contains "getTest")
       }
     }
+    "ignore trailing slash" in {
+      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
+      Get("/getTest/") ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[String] contains "getTest")
+      }
+    }
     "route with path segments" in {
       val r = RouteGenerator.makeHttpRoute("getTest/$id", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler)
       Get("/getTest/123") ~> r ~> check {
