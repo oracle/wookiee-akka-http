@@ -96,7 +96,7 @@ object RouteGenerator {
                       mapRouteResult {
                         case Complete(response) =>
                           accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
-                          finishTimer(response.status.intValue, timer)
+                          timer.foreach(finishTimer(_, response.status.intValue))
                           Complete(response)
                         case Rejected(rejections) =>
                           // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
@@ -107,7 +107,7 @@ object RouteGenerator {
                         .getOrElse(ex.getClass.getSimpleName)
                       log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
                       accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
-                      finishTimer(StatusCodes.InternalServerError.intValue, timer)
+                      timer.foreach(finishTimer(_, StatusCodes.InternalServerError.intValue))
                       complete(StatusCodes.InternalServerError, "There was an internal server error.")
                   }
                 }
@@ -236,11 +236,11 @@ object RouteGenerator {
       }
       .result()
 
-  private def finishTimer(statusCode:Int, timer:Option[TimerStopwatch]): Unit =
+  private def finishTimer(timer: TimerStopwatch, statusCode: Int): Unit =
     statusCode match {
-      case n if n >= 200 && n < 400 => timer.foreach(_.success)
-      case n if n >= 400 && n < 500 => timer.foreach(t => t.failure(s"${t.name}-request"))
-      case _ => timer.foreach(t => t.failure(s"${t.name}-server"))
+      case n if n >= 200 && n < 400 => timer.success
+      case n if n >= 400 && n < 500 => timer.failure("request")
+      case _ => timer.failure("server")
     }
 
 }
