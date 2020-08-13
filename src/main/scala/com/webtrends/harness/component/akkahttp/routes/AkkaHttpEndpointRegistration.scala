@@ -50,13 +50,15 @@ trait AkkaHttpEndpointRegistration {
                                                                responseHandler: U => Route,
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
+                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                               enableTimer: Boolean = false
                                                               )(implicit ec: ExecutionContext, corsSettings: Option[CorsSettings]= None): Unit = {
 
     val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
+    val timerName = if(enableTimer) Some(name.replace(".", "-")) else None
     addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, defaultHeaders, corsSettings)
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, defaultHeaders, corsSettings, timerName)
 
         endpointType match {
           case EndpointType.INTERNAL =>

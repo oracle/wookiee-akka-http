@@ -33,6 +33,7 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
+import com.webtrends.harness.component.metrics.TimerStopwatch
 import com.webtrends.harness.logging.Logger
 
 import scala.collection.immutable
@@ -68,7 +69,8 @@ object RouteGenerator {
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                 accessLogIdGetter: Option[AkkaHttpRequest => String] = Some(_=>"-"),
                                                 defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                corsSettings: Option[CorsSettings] = None)
+                                                corsSettings: Option[CorsSettings] = None,
+                                                timerName: Option[String] = None)
                                                (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
 
     val httpPath = parseRouteSegments(path)
@@ -76,6 +78,7 @@ object RouteGenerator {
       httpPath { segments: AkkaHttpPathSegments =>
         respondWithHeaders(defaultHeaders: _*) {
           parameterMap { paramMap: Map[String, String] =>
+            val timer = timerName.map(TimerStopwatch(_))
             extractRequest { request =>
               val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
               val httpEntity = getPayload(method, request)
@@ -93,6 +96,7 @@ object RouteGenerator {
                       mapRouteResult {
                         case Complete(response) =>
                           accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
+                          timer.foreach(finishTimer(_, response.status.intValue))
                           Complete(response)
                         case Rejected(rejections) =>
                           // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
@@ -103,6 +107,7 @@ object RouteGenerator {
                         .getOrElse(ex.getClass.getSimpleName)
                       log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
                       accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
+                      timer.foreach(finishTimer(_, StatusCodes.InternalServerError.intValue))
                       complete(StatusCodes.InternalServerError, "There was an internal server error.")
                   }
                 }
@@ -230,5 +235,12 @@ object RouteGenerator {
         complete((StatusCodes.Forbidden, s"CORS: $causes"))
       }
       .result()
+
+  private def finishTimer(timer: TimerStopwatch, statusCode: Int): Unit =
+    statusCode match {
+      case n if n >= 200 && n < 400 => timer.success
+      case n if n >= 400 && n < 500 => timer.failure("request")
+      case _ => timer.failure("server")
+    }
 
 }
