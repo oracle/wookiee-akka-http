@@ -227,16 +227,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
   "Cors settings" should {
     val whiteListOrigin = HttpOrigin("http://example.com")
-    val corsSettings = CorsSettings(ConfigFactory.parseString(
-      """akka-http-cors {
-        |allow-generic-http-requests = true,
-        |allow-credentials = true,
-        |allowed-origins = "*",
-        |allowed-headers = "*",
-        |allowed-methods = [],
-        |exposed-headers = [],
-        |max-age = 30 minutes
-        |}""".stripMargin))
+    val corsSettings = CorsSettings.defaultSettings.withAllowedMethods(List())
       .withAllowedOrigins(HttpOriginMatcher(whiteListOrigin))
     "Allows a request with whitelisted origin" in {
       val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
