@@ -55,10 +55,10 @@ trait AkkaHttpEndpointRegistration {
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
                                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                               corsSettings: Option[CorsSettings]= None,
                                                                enableTimer: Boolean = false
                                                               )(implicit
                                                                 ec: ExecutionContext,
-                                                                corsSettings: Option[CorsSettings]= None,
                                                                 responseTimeout: Option[FiniteDuration] = None,
                                                                 timeoutHandler: Option[HttpRequest => HttpResponse] = None
                                                               ): Unit = {
