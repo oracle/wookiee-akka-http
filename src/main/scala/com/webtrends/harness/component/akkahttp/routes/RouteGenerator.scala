@@ -233,7 +233,7 @@ object RouteGenerator {
                           accessLogIdGetter: Option[AkkaHttpRequest => String]): Directive0 =
     corsSettings match {
       case Some(cors) => handleRejections(corsRejectionHandler(request, accessLogIdGetter)) &
-        CorsDirectives.cors(cors.withAllowedMethods(immutable.Seq(method)))
+        CorsDirectives.cors(cors.withAllowedMethods(cors.allowedMethods ++ immutable.Seq(method)))
       case None => pass
     }
 
