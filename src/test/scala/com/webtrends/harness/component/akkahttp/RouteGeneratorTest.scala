@@ -29,6 +29,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import com.typesafe.config.ConfigFactory
 import com.webtrends.harness.command.CommandFactory
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, RouteGenerator}
 import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -226,7 +227,16 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
   "Cors settings" should {
     val whiteListOrigin = HttpOrigin("http://example.com")
-    val corsSettings = CorsSettings.defaultSettings
+    val corsSettings = CorsSettings(ConfigFactory.parseString(
+      """akka-http-cors {
+        |allow-generic-http-requests = true,
+        |allow-credentials = true,
+        |allowed-origins = "*",
+        |allowed-headers = "*",
+        |allowed-methods = [],
+        |exposed-headers = [],
+        |max-age = 30 minutes
+        |}""".stripMargin))
       .withAllowedOrigins(HttpOriginMatcher(whiteListOrigin))
     "Allows a request with whitelisted origin" in {
       val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
