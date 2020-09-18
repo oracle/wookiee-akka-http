@@ -90,6 +90,26 @@ trait AkkaHttpEndpointRegistration {
         }
       }
     }
+
+  def addWebsocketEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
+                                                               path: String,
+                                                               method: HttpMethod,
+                                                               endpointType: EndpointType.EndpointType,
+                                                               requestHandler: AkkaHttpRequest => Future[T],
+                                                               businessLogic: T => Future[U],
+                                                               responseHandler: U => Route,
+                                                               errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
+                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
+                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                               corsSettings: Option[CorsSettings]= None,
+                                                               enableTimer: Boolean = false
+                                                              )(implicit
+                                                                ec: ExecutionContext,
+                                                                responseTimeout: Option[FiniteDuration] = None,
+                                                                timeoutHandler: Option[HttpRequest => HttpResponse] = None
+                                                              ): Unit = {
+
+  }
 }
 
 object AkkaHttpEndpointRegistration {

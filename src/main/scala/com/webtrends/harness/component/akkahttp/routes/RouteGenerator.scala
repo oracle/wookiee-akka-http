@@ -16,28 +16,38 @@
 
 package com.webtrends.harness.component.akkahttp.routes
 
+import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.Locale
 import java.util.Locale.LanguageRange
+import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
 
-import akka.actor.ActorRef
+import akka.actor.{Actor, ActorRef, Props, Terminated}
+import akka.actor.TypedActor.context
+import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodingRange, HttpEncodings, Origin, `Accept-Encoding`, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Origin`, `Access-Control-Expose-Headers`, `Content-Encoding`}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Origin, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Origin`, `Access-Control-Expose-Headers`}
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
-import akka.util.Timeout
-import ch.megard.akka.http.cors.javadsl
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives
+import akka.stream.OverflowStrategy
+import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.util.{ByteString, Timeout}
+import ch.megard.akka.http.cors.scaladsl.{CorsDirectives, CorsRejection}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
+import com.typesafe.config.ConfigFactory
+import com.webtrends.harness.app.Harness.log
 import com.webtrends.harness.command.ExecuteCommand
+import com.webtrends.harness.component.akkahttp.AkkaHttpSettings
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.metrics.TimerStopwatch
+import com.webtrends.harness.component.metrics.metrictype.Counter
 import com.webtrends.harness.logging.Logger
 
 import scala.collection.JavaConverters._
+import scala.collection.convert.ImplicitConversions.`iterable AsScalaIterable`
 import scala.collection.immutable
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
@@ -62,7 +72,33 @@ case class AkkaHttpRequest(
                             requestBody: Option[RequestEntity] = None
                           )
 
+case class WebsocketRequest(
+                             path: String,
+                             method: HttpMethod,
+                             protocol: HttpProtocol,
+                             requestHeaders: Map[String, String],
+                             requestBody: Option[RequestEntity] = None
+                          )
+
+trait StreamRequest
+
+case class StreamRequest(
+                          ts: Source[String, _],
+                          req: StreamRequest,
+                          callback: ActorRef
+                        ) extends StreamRequest
+
+case class TextRequest(
+                          text: String,
+                          req: StreamRequest,
+                          callback: ActorRef
+                        ) extends StreamRequest
+
 object RouteGenerator {
+  val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
+  val settings = AkkaHttpSettings(ConfigFactory.defaultApplication())
+//  val openSocketGauge = Counter(s"${AkkaHttpBase.AHMetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
+
   def makeHttpRoute[T <: Product : ClassTag, V](path: String,
                                                 method: HttpMethod,
                                                 commandRef: ActorRef,
@@ -124,6 +160,149 @@ object RouteGenerator {
           }
         }
       }
+    }
+  }
+
+  def makeWebsocketRoute[T <: Product : ClassTag, V](path: String,
+                                                method: HttpMethod,
+                                                commandRef: ActorRef,
+                                                requestHandler: StreamRequest => TextMessage,
+                                                responseHandler: V => Route,
+                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
+                                                responseTimeout: FiniteDuration,
+                                                timeoutHandler: HttpRequest => HttpResponse,
+                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = Some(_ => "-"),
+                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                corsSettings: Option[CorsSettings] = None,
+                                                timerName: Option[String] = None)
+                                               (implicit ec: ExecutionContext, log: Logger): Route = {
+
+    extractRequest { req =>
+      // Query params that can be marshalled to a case class via httpParams
+      val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
+
+      // Override if you want the TextMessage content to be left as a stream
+      def isStreamingText: Boolean = false
+      val reqWeb = WebsocketRequest(req.uri.path.toString(), req.method, req.protocol, reqHeaders, None)
+
+//      beanDirective(bean, path, method) { outputBean =>
+        req.header[`Accept-Encoding`] match {
+          case Some(encoding) =>
+            supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+              case Some(compression) => respondWithHeader(`Content-Encoding`(compression)) {
+                handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler, isStreamingText))
+              }
+              case None => handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+            }
+          case None =>
+            handleWebSocketMessages(webSocketService(reqWeb, List(), requestHandler))
+        }
+//      }
+    }
+
+
+
+    // This the the main method to route WS messages
+    def webSocketService(req: WebsocketRequest, encodings: List[HttpEncodingRange],
+                         requestHandler: StreamRequest => TextMessage,
+                         isStreamingText: Boolean = false): Flow[Message, Message, Any] = {
+      val sActor = context.system.actorOf(Props(new SocketActor(req, requestHandler)))
+      val sink =
+        Flow[Message].map {
+          case tm: TextMessage if tm.getStrictText == "keepalive" =>
+            Nil
+          case tm: TextMessage ⇒
+            (tm, req)
+          case bm: BinaryMessage =>
+            if (isStreamingText) {
+              val stringStream = bm.dataStream.map[String](sd => sd.utf8String)
+              (TextMessage(stringStream), req)
+            } else {
+              (TextMessage(bm.getStrictData.utf8String), req)
+            }
+          case m =>
+            log.warn("Unknown message: " + m)
+            Nil
+        }.to(Sink.actorRef(sActor, CloseSocket()))
+
+      val compression = supported.find(enc => encodings.exists(_.matches(enc)))
+      val source: Source[Message, Any] =
+        Source.actorRef[Message](10, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
+          sActor ! Connect(outgoingActor, isStreamingText)
+        } map {
+          case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
+          // TODO Add support for binary message compression if anyone ends up wanting it
+          case mess => mess
+        }
+      val livingSource = if (settings.ws.keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
+      else source
+
+      Flow.fromSinkAndSourceCoupled(sink, livingSource)
+    }
+
+  }
+
+  // Do the encoding of the results
+  protected def compress(text: String, compression: Option[HttpEncoding]): Message = {
+    val bos = new ByteArrayOutputStream(text.length)
+    val zipper = if (compression.get.value == HttpEncodings.gzip.value) new GZIPOutputStream(bos)
+    else if (compression.get.value == HttpEncodings.deflate.value) new DeflaterOutputStream(bos)
+    else new PrintStream(bos)
+
+    try {
+      zipper.write(text.getBytes)
+      zipper.close()
+      BinaryMessage(ByteString(bos.toByteArray))
+    } finally {
+      bos.close()
+    }
+  }
+
+  case class CloseSocket() // We get this when websocket closes
+  case class Connect(actorRef: ActorRef, isStreamingText: Boolean) // Initial connection
+
+  // Actor that exists per each open websocket and closes when the WS closes, also routes back return messages
+  class SocketActor(req: WebsocketRequest, requestHandler: StreamRequest => TextMessage) extends Actor {
+    private[websocket] var callbactor: Option[ActorRef] = None
+
+    override def postStop() = {
+//      openSocketGauge.incr(-1)
+//      onWebsocketClose(bean, callbactor)
+      super.postStop()
+    }
+
+    override def preStart() = {
+//      openSocketGauge.incr(1)
+      super.preStart()
+    }
+
+    def receive: Receive = starting
+
+    def starting: Receive = {
+      case Connect(actor, isStreamingText) =>
+        callbactor = Some(actor) // Set callback actor
+        context become open(isStreamingText)
+        context.watch(actor)
+      case _: CloseSocket =>
+        context.stop(self)
+    }
+
+    // When becoming this, callbactor should already be set
+    def open(isStreamingText: Boolean): Receive = {
+      case tmb: (TextMessage, StreamRequest) if isStreamingText =>
+        val returnText = requestHandler(StreamRequest(tmb._1.textStream, tmb._2, callbactor.get))
+        callbactor.get ! returnText
+      case tmb: (TextMessage, StreamRequest) =>
+        val returnText = requestHandler(TextRequest(tmb._1.getStrictText, tmb._2, callbactor.get))
+        callbactor.get ! returnText
+      case Terminated(actor) =>
+        if (callbactor.exists(_.path.equals(actor.path))) {
+          log.debug(s"Linked callback actor terminated ${actor.path.name}, closing down websocket")
+          context.stop(self)
+        }
+      case _: CloseSocket =>
+        context.stop(self)
+      case _ => // Mainly for eating the keep alive
     }
   }
 
@@ -256,7 +435,7 @@ object RouteGenerator {
   private def corsRejectionHandler(request: AkkaHttpRequest, accessLogIdGetter: Option[AkkaHttpRequest => String]): RejectionHandler =
     RejectionHandler
       .newBuilder()
-      .handleAll[javadsl.CorsRejection] { rejections =>
+      .handleAll[CorsRejection] { rejections =>
         val causes = rejections.map(_.cause.description).mkString(", ")
         accessLogIdGetter.foreach(g => AccessLog.logAccess(request, g(request), StatusCodes.Forbidden))
         complete((StatusCodes.Forbidden, s"CORS: $causes"))
