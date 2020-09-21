@@ -55,12 +55,14 @@ import scala.util.{Failure, Success}
 
 
 trait AkkaHttpParameters
+
 trait AkkaHttpPathSegments
+
 trait AkkaHttpAuth
 
 case class AkkaHttpRequest(
                             path: String,
-                          // List, not Seq as Seq is not <: Product and route params are common command inputs
+                            // List, not Seq as Seq is not <: Product and route params are common command inputs
                             segments: List[String],
                             method: HttpMethod,
                             protocol: HttpProtocol,
@@ -78,7 +80,7 @@ case class WebsocketRequest(
                              requestHeaders: Map[String, String],
                              isStreamingReq: Boolean,
                              requestBody: Option[RequestEntity] = None
-                          )
+                           )
 
 case class SocketRequest(
                           ts: TextMessage,
@@ -103,7 +105,7 @@ case class TextRequest(
 object RouteGenerator {
   val supported = List(HttpEncodings.gzip, HttpEncodings.deflate)
   val settings = AkkaHttpSettings(ConfigFactory.defaultApplication())
-//  val openSocketGauge = Counter(s"${AkkaHttpBase.AHMetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
+  //  val openSocketGauge = Counter(s"${AkkaHttpBase.AHMetricsPrefix}.websocket.${path.replaceAll("/", "-")}.open-count")
 
   def makeHttpRoute[T <: Product : ClassTag, V](path: String,
                                                 method: HttpMethod,
@@ -170,8 +172,8 @@ object RouteGenerator {
   }
 
   def makeWebsocketRoute(requestHandler: SocketRequest => TextMessage,
-                        isStreamingReq: Boolean)
-                                               (implicit ec: ExecutionContext, log: Logger): Route = {
+                         isStreamingReq: Boolean)
+                        (implicit ec: ExecutionContext, log: Logger): Route = {
 
     extractRequest { req =>
       // Query params that can be marshalled to a case class via httpParams
@@ -179,58 +181,56 @@ object RouteGenerator {
 
       val reqWeb = WebsocketRequest(req.uri.path.toString(), req.method, req.protocol, reqHeaders, isStreamingReq, None)
 
-        req.header[`Accept-Encoding`] match {
-          case Some(encoding) =>
-            supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
-              case Some(compression) => respondWithHeader(`Content-Encoding`(compression)) {
-                handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
-              }
-              case None => handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+      req.header[`Accept-Encoding`] match {
+        case Some(encoding) =>
+          supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+            case Some(compression) => respondWithHeader(`Content-Encoding`(compression)) {
+              handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
             }
-          case None =>
-            handleWebSocketMessages(webSocketService(reqWeb, List(), requestHandler))
-        }
+            case None => handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+          }
+        case None =>
+          handleWebSocketMessages(webSocketService(reqWeb, List(), requestHandler))
+      }
     }
+  }
 
 
+  // This the the main method to route WS messages
+  def webSocketService(req: WebsocketRequest, encodings: List[HttpEncodingRange],
+                       requestHandler: SocketRequest => TextMessage): Flow[Message, Message, Any] = {
+    val sActor = context.system.actorOf(Props(new SocketActor(req, requestHandler)))
+    val sink =
+      Flow[Message].map {
+        case tm: TextMessage if tm.getStrictText == "keepalive" =>
+          Nil
+        case tm: TextMessage ⇒
+          (tm, req)
+        case bm: BinaryMessage =>
+          if (req.isStreamingReq) {
+            val stringStream = bm.dataStream.map[String](sd => sd.utf8String)
+            (TextMessage(stringStream), req)
+          } else {
+            (TextMessage(bm.getStrictData.utf8String), req)
+          }
+        case m =>
+          log.warn("Unknown message: " + m)
+          Nil
+      }.to(Sink.actorRef(sActor, CloseSocket()))
 
-    // This the the main method to route WS messages
-    def webSocketService(req: WebsocketRequest, encodings: List[HttpEncodingRange],
-                         requestHandler: SocketRequest => TextMessage): Flow[Message, Message, Any] = {
-      val sActor = context.system.actorOf(Props(new SocketActor(req, requestHandler)))
-      val sink =
-        Flow[Message].map {
-          case tm: TextMessage if tm.getStrictText == "keepalive" =>
-            Nil
-          case tm: TextMessage ⇒
-            (tm, req)
-          case bm: BinaryMessage =>
-            if (req.isStreamingReq) {
-              val stringStream = bm.dataStream.map[String](sd => sd.utf8String)
-              (TextMessage(stringStream), req)
-            } else {
-              (TextMessage(bm.getStrictData.utf8String), req)
-            }
-          case m =>
-            log.warn("Unknown message: " + m)
-            Nil
-        }.to(Sink.actorRef(sActor, CloseSocket()))
+    val compression = supported.find(enc => encodings.exists(_.matches(enc)))
+    val source: Source[Message, Any] =
+      Source.actorRef[Message](10, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
+        sActor ! Connect(outgoingActor)
+      } map {
+        case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
+        // TODO Add support for binary message compression if anyone ends up wanting it
+        case mess => mess
+      }
+    val livingSource = if (settings.ws.keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
+    else source
 
-      val compression = supported.find(enc => encodings.exists(_.matches(enc)))
-      val source: Source[Message, Any] =
-        Source.actorRef[Message](10, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
-          sActor ! Connect(outgoingActor)
-        } map {
-          case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
-          // TODO Add support for binary message compression if anyone ends up wanting it
-          case mess => mess
-        }
-      val livingSource = if (settings.ws.keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
-      else source
-
-      Flow.fromSinkAndSourceCoupled(sink, livingSource)
-    }
-
+    Flow.fromSinkAndSourceCoupled(sink, livingSource)
   }
 
   // Do the encoding of the results
@@ -257,13 +257,13 @@ object RouteGenerator {
     private[websocket] var callbactor: Option[ActorRef] = None
 
     override def postStop() = {
-//      openSocketGauge.incr(-1)
-//      onWebsocketClose(bean, callbactor)
+      //      openSocketGauge.incr(-1)
+      //      onWebsocketClose(bean, callbactor)
       super.postStop()
     }
 
     override def preStart() = {
-//      openSocketGauge.incr(1)
+      //      openSocketGauge.incr(1)
       super.preStart()
     }
 
@@ -316,12 +316,17 @@ object RouteGenerator {
   // TODO: #129
   // Use these to generically extract values from a query string
   private case class Holder1(_1: String) extends Product1[String] with AkkaHttpPathSegments
+
   private case class Holder2(_1: String, _2: String) extends Product2[String, String] with AkkaHttpPathSegments
+
   private case class Holder3(_1: String, _2: String, _3: String) extends Product3[String, String, String] with AkkaHttpPathSegments
+
   private case class Holder4(_1: String, _2: String, _3: String, _4: String)
     extends Product4[String, String, String, String] with AkkaHttpPathSegments
+
   private case class Holder5(_1: String, _2: String, _3: String, _4: String, _5: String)
     extends Product5[String, String, String, String, String] with AkkaHttpPathSegments
+
   private case class Holder6(_1: String, _2: String, _3: String, _4: String, _5: String, _6: String)
     extends Product6[String, String, String, String, String, String] with AkkaHttpPathSegments
 
