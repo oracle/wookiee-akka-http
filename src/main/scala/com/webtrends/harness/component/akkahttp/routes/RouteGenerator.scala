@@ -171,27 +171,37 @@ object RouteGenerator {
     }
   }
 
-  def makeWebsocketRoute(requestHandler: SocketRequest => TextMessage,
-                         isStreamingReq: Boolean)
+  def makeWebsocketRoute(path: String,
+                         method: HttpMethod,
+                          requestHandler: SocketRequest => TextMessage,
+                         isStreamingReq: Boolean,
+                         timerName: Option[String] = None)
                         (implicit ec: ExecutionContext, log: Logger): Route = {
+    val httpPath = parseRouteSegments(path)
+    ignoreTrailingSlash {
+      httpPath { segments: AkkaHttpPathSegments =>
+          parameterMap { paramMap: Map[String, String] =>
+            val timer = timerName.map(TimerStopwatch(_))
+            extractRequest { req =>
+              // Query params that can be marshalled to a case class via httpParams
+              val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
 
-    extractRequest { req =>
-      // Query params that can be marshalled to a case class via httpParams
-      val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
+              val reqWeb = WebsocketRequest(req.uri.path.toString(), req.method, req.protocol, reqHeaders, isStreamingReq, None)
 
-      val reqWeb = WebsocketRequest(req.uri.path.toString(), req.method, req.protocol, reqHeaders, isStreamingReq, None)
-
-      req.header[`Accept-Encoding`] match {
-        case Some(encoding) =>
-          supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
-            case Some(compression) => respondWithHeader(`Content-Encoding`(compression)) {
-              handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+              req.header[`Accept-Encoding`] match {
+                case Some(encoding) =>
+                  supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+                    case Some(compression) => respondWithHeader(`Content-Encoding`(compression)) {
+                      handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+                    }
+                    case None => handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
+                  }
+                case None =>
+                  handleWebSocketMessages(webSocketService(reqWeb, List(), requestHandler))
+              }
             }
-            case None => handleWebSocketMessages(webSocketService(reqWeb, encoding.encodings.toList, requestHandler))
           }
-        case None =>
-          handleWebSocketMessages(webSocketService(reqWeb, List(), requestHandler))
-      }
+        }
     }
   }
 
@@ -199,7 +209,7 @@ object RouteGenerator {
   // This the the main method to route WS messages
   def webSocketService(req: WebsocketRequest, encodings: List[HttpEncodingRange],
                        requestHandler: SocketRequest => TextMessage): Flow[Message, Message, Any] = {
-    val sActor = context.system.actorOf(Props(new SocketActor(req, requestHandler)))
+    val sActor = context.system.actorOf(Props(new SocketActor(requestHandler)))
     val sink =
       Flow[Message].map {
         case tm: TextMessage if tm.getStrictText == "keepalive" =>
@@ -251,48 +261,6 @@ object RouteGenerator {
 
   case class CloseSocket() // We get this when websocket closes
   case class Connect(actorRef: ActorRef) // Initial connection
-
-  // Actor that exists per each open websocket and closes when the WS closes, also routes back return messages
-  class SocketActor(req: WebsocketRequest, requestHandler: SocketRequest => TextMessage) extends Actor {
-    private[websocket] var callbactor: Option[ActorRef] = None
-
-    override def postStop() = {
-      //      openSocketGauge.incr(-1)
-      //      onWebsocketClose(bean, callbactor)
-      super.postStop()
-    }
-
-    override def preStart() = {
-      //      openSocketGauge.incr(1)
-      super.preStart()
-    }
-
-    def receive: Receive = starting
-
-    def starting: Receive = {
-      case Connect(actor) =>
-        callbactor = Some(actor) // Set callback actor
-        context become open()
-        context.watch(actor)
-      case _: CloseSocket =>
-        context.stop(self)
-    }
-
-    // When becoming this, callbactor should already be set
-    def open(): Receive = {
-      case tmb: (TextMessage, WebsocketRequest) =>
-        val returnText = requestHandler(SocketRequest(tmb._1, tmb._2, callbactor.get))
-        callbactor.get ! returnText
-      case Terminated(actor) =>
-        if (callbactor.exists(_.path.equals(actor.path))) {
-          log.debug(s"Linked callback actor terminated ${actor.path.name}, closing down websocket")
-          context.stop(self)
-        }
-      case _: CloseSocket =>
-        context.stop(self)
-      case _ => // Mainly for eating the keep alive
-    }
-  }
 
   // At this point in the route, the CORS directive has already been applied, meaning that pre-flight requests have
   // already been handled and any invalid requests have  been rejected.

@@ -18,15 +18,16 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import java.util.concurrent.TimeUnit
 
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethod, HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.model.ws.TextMessage
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Route
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
+import com.webtrends.harness.component.akkahttp.routes.AkkaHttpEndpointRegistration._
 import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger}
 import com.webtrends.harness.utils.ConfigUtil
-import AkkaHttpEndpointRegistration._
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
@@ -45,23 +46,23 @@ trait AkkaHttpEndpointRegistration {
   if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
   implicit val logger: Logger = log
 
-  def addAkkaHttpEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
-                                                               path: String,
-                                                               method: HttpMethod,
-                                                               endpointType: EndpointType.EndpointType,
-                                                               requestHandler: AkkaHttpRequest => Future[T],
-                                                               businessLogic: T => Future[U],
-                                                               responseHandler: U => Route,
-                                                               errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                               corsSettings: Option[CorsSettings]= None,
-                                                               enableTimer: Boolean = false
-                                                              )(implicit
-                                                                ec: ExecutionContext,
-                                                                responseTimeout: Option[FiniteDuration] = None,
-                                                                timeoutHandler: Option[HttpRequest => HttpResponse] = None
-                                                              ): Unit = {
+  def addAkkaHttpEndpoint[T <: Product : ClassTag, U: ClassTag](name: String,
+                                                                path: String,
+                                                                method: HttpMethod,
+                                                                endpointType: EndpointType.EndpointType,
+                                                                requestHandler: AkkaHttpRequest => Future[T],
+                                                                businessLogic: T => Future[U],
+                                                                responseHandler: U => Route,
+                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
+                                                                accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
+                                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                                                                corsSettings: Option[CorsSettings] = None,
+                                                                enableTimer: Boolean = false
+                                                               )(implicit
+                                                                 ec: ExecutionContext,
+                                                                 responseTimeout: Option[FiniteDuration] = None,
+                                                                 timeoutHandler: Option[HttpRequest => HttpResponse] = None
+                                                               ): Unit = {
 
     val sysTo = FiniteDuration(config.getDuration("akka.http.server.request-timeout").toNanos, TimeUnit.NANOSECONDS)
     val timeout = responseTimeout match {
@@ -72,42 +73,65 @@ trait AkkaHttpEndpointRegistration {
       case None => sysTo
     }
 
-    val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
-    val timerName = if(enableTimer) Some(name.replace(".", "-")) else None
+    val accessLogger = if (accessLoggingEnabled) Some(accessLogIdGetter) else None
+    val timerName = if (enableTimer) Some(name.replace(".", "-")) else None
     addCommand(name, businessLogic).map { ref =>
-        val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, timeout,
-            timeoutHandler.getOrElse(defaultTimeoutResponse), accessLogger, defaultHeaders, corsSettings, timerName)
+      val route = RouteGenerator
+        .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, timeout,
+          timeoutHandler.getOrElse(defaultTimeoutResponse), accessLogger, defaultHeaders, corsSettings, timerName)
 
-        endpointType match {
-          case EndpointType.INTERNAL =>
-            InternalAkkaHttpRouteContainer.addRoute(route)
-          case EndpointType.EXTERNAL =>
-            ExternalAkkaHttpRouteContainer.addRoute(route)
-          case EndpointType.BOTH =>
-            ExternalAkkaHttpRouteContainer.addRoute(route)
-            InternalAkkaHttpRouteContainer.addRoute(route)
-        }
+      endpointType match {
+        case EndpointType.INTERNAL =>
+          InternalAkkaHttpRouteContainer.addRoute(route)
+        case EndpointType.EXTERNAL =>
+          ExternalAkkaHttpRouteContainer.addRoute(route)
+        case EndpointType.BOTH =>
+          ExternalAkkaHttpRouteContainer.addRoute(route)
+          InternalAkkaHttpRouteContainer.addRoute(route)
       }
     }
+  }
 
-  def addWebsocketEndpoint[T <: Product: ClassTag, U: ClassTag](name: String,
-                                                               path: String,
-                                                               method: HttpMethod,
-                                                               endpointType: EndpointType.EndpointType,
-                                                               requestHandler: AkkaHttpRequest => Future[T],
-                                                               businessLogic: T => Future[U],
-                                                               responseHandler: U => Route,
-                                                               errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                               corsSettings: Option[CorsSettings]= None,
-                                                               enableTimer: Boolean = false
-                                                              )(implicit
-                                                                ec: ExecutionContext,
-                                                                responseTimeout: Option[FiniteDuration] = None,
-                                                                timeoutHandler: Option[HttpRequest => HttpResponse] = None
-                                                              ): Unit = {
+  def addWebsocketEndpoint(name: String,
+                           path: String,
+                           method: HttpMethod,
+                           businessLogic: SocketRequest => TextMessage,
+                           endpointType: EndpointType.EndpointType,
+                           isStreamingReq: Boolean,
+                           errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
+                           accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
+                           enableTimer: Boolean = false
+                          )(implicit
+                            ec: ExecutionContext,
+                            responseTimeout: Option[FiniteDuration] = None,
+                            timeoutHandler: Option[HttpRequest => HttpResponse] = None
+                          ): Unit = {
+    val sysTo = FiniteDuration(config.getDuration("akka.http.server.request-timeout").toNanos, TimeUnit.NANOSECONDS)
+    val timeout = responseTimeout match {
+      case Some(to) if to > sysTo =>
+        log.warning(s"Time out of ${to.toMillis}ms for $method $path exceeds system max time out of ${sysTo.toMillis}ms.")
+        sysTo
+      case Some(to) => to
+      case None => sysTo
+    }
+
+    val accessLogger = if (accessLoggingEnabled) Some(accessLogIdGetter) else None
+    val timerName = if (enableTimer) Some(name.replace(".", "-")) else None
+
+    addCommand(name, classOf[SocketActor]).map { ref =>
+      val route = RouteGenerator
+        .makeWebsocketRoute(path, method, businessLogic, isStreamingReq, timerName)
+
+      endpointType match {
+        case EndpointType.INTERNAL =>
+          InternalAkkaHttpRouteContainer.addRoute(route)
+        case EndpointType.EXTERNAL =>
+          ExternalAkkaHttpRouteContainer.addRoute(route)
+        case EndpointType.BOTH =>
+          ExternalAkkaHttpRouteContainer.addRoute(route)
+          InternalAkkaHttpRouteContainer.addRoute(route)
+      }
+    }
 
   }
 }
