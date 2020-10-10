@@ -35,7 +35,6 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.metrics.TimerStopwatch
-import com.webtrends.harness.component.metrics.TimerStopwatch.{futureWrapper, tryWrapper}
 import com.webtrends.harness.logging.Logger
 
 import scala.collection.JavaConverters._
@@ -132,7 +131,7 @@ object RouteGenerator {
   private def maybeTime[T](timerLabel: Option[String], toRun: => T): T = {
     timerLabel match {
       case Some(label) =>
-        tryWrapper(label)({toRun})
+        TimerStopwatch.tryWrapper(label)({toRun})
       case None =>
         toRun
     }
@@ -141,7 +140,7 @@ object RouteGenerator {
   private def maybeTimeF[T](timerLabel: Option[String], toRun: => Future[T])(implicit ec: ExecutionContext): Future[T] = {
     timerLabel match {
       case Some(label) =>
-        futureWrapper(label)({toRun})
+        TimerStopwatch.futureWrapper(label)({toRun})
       case None =>
         toRun
     }
