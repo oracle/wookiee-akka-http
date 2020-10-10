@@ -31,7 +31,7 @@ import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.typesafe.config.ConfigFactory
 import com.webtrends.harness.command.CommandFactory
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, RouteGenerator}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointOptions, RouteGenerator}
 import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
 import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized, RequestInfo}
 import com.webtrends.harness.logging.Logger
@@ -46,6 +46,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
   implicit val logger: Logger = Logger.getLogger(getClass.getName)
   val responseTo = FiniteDuration(10, TimeUnit.MILLISECONDS)
   val toHandler: HttpRequest => HttpResponse = AkkaHttpEndpointRegistration.defaultTimeoutResponse
+  val defaultConfig = EndpointOptions.default
 
   import RouteGeneratorTest._
 
@@ -91,13 +92,15 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
         assert(entityAs[RequestInfo].verb == "HttpMethod(POST)")
       }
     }
+
     "providing accessLog id getter gets called with AkkaHttpRequest object" in {
       var called = false
       val r = RouteGenerator.makeHttpRoute("accessLogTest", HttpMethods.GET, actorRef, requestHandler,
-        responseHandler200, rejectionHandler, responseTo, toHandler, Some(r => {
+        responseHandler200, rejectionHandler, responseTo, toHandler,
+        defaultConfig.copy(accessLogIdGetter = r => {
           called = r.isInstanceOf[AkkaHttpRequest];
           "works"
-        }))
+        }), true)
 
       Get("/accessLogTest") ~> r ~> check {
         assert(called, "called variable not reset by accessLogIdGetter call")
@@ -109,8 +112,9 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
         case Ok(header, _) => Some(header)
         case Error(_) => None
       }
-      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler,
-        defaultHeaders = Seq(userHeader.get))
+      val r = RouteGenerator.makeHttpRoute("getTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200,
+        rejectionHandler, responseTo, toHandler,
+        defaultConfig.copy(defaultHeaders = Seq(userHeader.get)))
 
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
@@ -227,38 +231,43 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 
   "Cors settings" should {
     val whiteListOrigin = HttpOrigin("http://example.com")
-    val corsSettings = CorsSettings.defaultSettings.withAllowedMethods(List())
-      .withAllowedOrigins(HttpOriginMatcher(whiteListOrigin))
+    val corsSettings = defaultConfig.copy(corsSettings = Some(CorsSettings.defaultSettings.withAllowedMethods(List())
+      .withAllowedOrigins(HttpOriginMatcher(whiteListOrigin))))
     "Allows a request with whitelisted origin" in {
-      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings)
       Get("/corsTest")~> Origin(whiteListOrigin) ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "corsTest")
       }
     }
     "Forbidden the request with unknown origin" in {
-      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings)
       Get("/corsTest") ~> Origin(HttpOrigin("http://unknown.com")) ~> r ~> check {
         assert(status == StatusCodes.Forbidden)
         assert(entityAs[String] contains "CORS: invalid origin 'http://unknown.com'")
       }
     }
     "Route with No Cors settings  must allow any origin" in {
-      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler)
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler)
       Get("/corsTest")~> Origin(HttpOrigin("http://unknown.com")) ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(entityAs[String] contains "corsTest")
       }
     }
     "pre flight allow the request with whitelist origin" in {
-      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings)
       Options("/corsTest") ~> Origin(HttpOrigin("http://example.com")) ~> `Access-Control-Request-Method`(HttpMethods.GET)  ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(response.headers contains `Access-Control-Allow-Methods`(Seq(HttpMethods.GET): _*))
       }
     }
     "pre flight should Forbidden the request with unknown origin" in {
-      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler, responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings = Some(corsSettings))
+      val r = RouteGenerator.makeHttpRoute("corsTest", HttpMethods.GET, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings)
       Options("/corsTest") ~> Origin(HttpOrigin("http://unknown.com")) ~> `Access-Control-Request-Method`(HttpMethods.GET)  ~> r ~> check {
         assert(status == StatusCodes.Forbidden)
         assert(entityAs[String] contains "CORS: invalid origin 'http://unknown.com'")

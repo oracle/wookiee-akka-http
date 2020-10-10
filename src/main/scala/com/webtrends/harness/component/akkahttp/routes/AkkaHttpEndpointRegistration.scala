@@ -37,6 +37,20 @@ object EndpointType extends Enumeration {
   val INTERNAL, EXTERNAL, BOTH = Value
 }
 
+// These are all of the more optional bits of configuring an endpoint
+case class EndpointOptions(
+                           accessLogIdGetter: AkkaHttpRequest => String = _ => "_",
+                           defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                           corsSettings: Option[CorsSettings] = None,
+                           routeTimerLabel: Option[String] = None,
+                           requestHandlerTimerLabel: Option[String] = None,
+                           businessLogicTimerLabel: Option[String] = None,
+                           responseHandlerTimerLabel: Option[String] = None
+                         )
+object EndpointOptions {
+  val default: EndpointOptions = EndpointOptions()
+}
+
 trait AkkaHttpEndpointRegistration {
   this: CommandHelper with ActorLoggingAdapter with HActor =>
 
@@ -53,10 +67,7 @@ trait AkkaHttpEndpointRegistration {
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                               corsSettings: Option[CorsSettings]= None,
-                                                               enableTimer: Boolean = false
+                                                               options: EndpointOptions = EndpointOptions.default
                                                               )(implicit
                                                                 ec: ExecutionContext,
                                                                 responseTimeout: Option[FiniteDuration] = None,
@@ -72,12 +83,10 @@ trait AkkaHttpEndpointRegistration {
       case None => sysTo
     }
 
-    val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
-    val timerName = if(enableTimer) Some(name.replace(".", "-")) else None
     addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
           .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, timeout,
-            timeoutHandler.getOrElse(defaultTimeoutResponse), accessLogger, defaultHeaders, corsSettings, timerName)
+            timeoutHandler.getOrElse(defaultTimeoutResponse), options, accessLoggingEnabled)
 
         endpointType match {
           case EndpointType.INTERNAL =>
