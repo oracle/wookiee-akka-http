@@ -71,52 +71,53 @@ object RouteGenerator {
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
                                                 responseTimeout: FiniteDuration,
                                                 timeoutHandler: HttpRequest => HttpResponse,
-                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = Some(_ => "-"),
-                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
-                                                corsSettings: Option[CorsSettings] = None,
-                                                timerName: Option[String] = None)
+                                                options: EndpointOptions = EndpointOptions.default,
+                                                accessLoggingEnabled: Boolean = false)
                                                (implicit ec: ExecutionContext, log: Logger): Route = {
-
+    val accessLogger =  if (accessLoggingEnabled) Some(options.accessLogIdGetter) else None
     val httpPath = parseRouteSegments(path)
     ignoreTrailingSlash {
       httpPath { segments: AkkaHttpPathSegments =>
-        respondWithHeaders(defaultHeaders: _*) {
+        respondWithHeaders(options.defaultHeaders: _*) {
           parameterMap { paramMap: Map[String, String] =>
-            val timer = timerName.map(TimerStopwatch(_))
+            val routeTimer = options.routeTimerLabel.map(TimerStopwatch(_))
             extractRequest { request =>
               val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
               val httpEntity = getPayload(method, request)
               val locales = requestLocales(reqHeaders)
               val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
                 reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
-              corsSupport(method, corsSettings, reqWrapper, accessLogIdGetter) {
+              corsSupport(method, options.corsSettings, reqWrapper, accessLogger) {
                 httpMethod(method) {
                   // Timeout behavior requires that CORS has already been enforced
-                  withRequestTimeout(responseTimeout, req => timeoutCors(req, timeoutHandler(req), corsSettings)) {
+                  withRequestTimeout(responseTimeout, req => timeoutCors(req, timeoutHandler(req), options.corsSettings)) {
                     // http request handlers should be built with authorization in mind.
                     implicit val akkaTimeout: Timeout = responseTimeout
                     onComplete((for {
-                      requestObjs <- requestHandler(reqWrapper)
-                      commandResult <- commandRef ? ExecuteCommand("", requestObjs, responseTimeout)
-                    } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler(reqWrapper))) {
-                      case Success(route: Route) =>
-                        mapRouteResult {
-                          case Complete(response) =>
-                            accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
-                            timer.foreach(finishTimer(_, response.status.intValue))
-                            Complete(response)
-                          case Rejected(rejections) =>
-                            // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
-                            ???
-                        }(route)
-                      case Failure(ex: Throwable) =>
-                        val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
-                          .getOrElse(ex.getClass.getSimpleName)
-                        log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
-                        accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
-                        timer.foreach(finishTimer(_, StatusCodes.InternalServerError.intValue))
-                        complete(StatusCodes.InternalServerError, "There was an internal server error.")
-                    }
+                      requestObjs <- maybeTimeF(options.requestHandlerTimerLabel,
+                        {requestHandler(reqWrapper)})
+                      commandResult <- maybeTimeF(options.businessLogicTimerLabel,
+                        {commandRef ? ExecuteCommand("", requestObjs, responseTimeout)})
+                    } yield maybeTime(options.responseHandlerTimerLabel, {responseHandler(commandResult.asInstanceOf[V])}))
+                      .recover(errorHandler(reqWrapper))) {
+                        case Success(route: Route) =>
+                          mapRouteResult {
+                            case Complete(response) =>
+                              accessLogger.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
+                              routeTimer.foreach(finishTimer(_, response.status.intValue))
+                              Complete(response)
+                            case Rejected(rejections) =>
+                              // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
+                              ???
+                          }(route)
+                        case Failure(ex: Throwable) =>
+                          val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                            .getOrElse(ex.getClass.getSimpleName)
+                          log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
+                          accessLogger.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
+                          routeTimer.foreach(finishTimer(_, StatusCodes.InternalServerError.intValue))
+                          complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                      }
                   }
                 }
               }
@@ -124,6 +125,24 @@ object RouteGenerator {
           }
         }
       }
+    }
+  }
+
+  private def maybeTime[T](timerLabel: Option[String], toRun: => T): T = {
+    timerLabel match {
+      case Some(label) =>
+        TimerStopwatch.tryWrapper(label)({toRun})
+      case None =>
+        toRun
+    }
+  }
+
+  private def maybeTimeF[T](timerLabel: Option[String], toRun: => Future[T])(implicit ec: ExecutionContext): Future[T] = {
+    timerLabel match {
+      case Some(label) =>
+        TimerStopwatch.futureWrapper(label)({toRun})
+      case None =>
+        toRun
     }
   }
 
