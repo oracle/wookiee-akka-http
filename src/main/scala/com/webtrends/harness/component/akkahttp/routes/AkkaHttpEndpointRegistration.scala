@@ -39,7 +39,7 @@ object EndpointType extends Enumeration {
 
 // These are all of the more optional bits of configuring an endpoint
 case class EndpointOptions(
-                           accessLogIdGetter: AkkaHttpRequest => String = _ => "_",
+                           accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
                            defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
                            corsSettings: Option[CorsSettings] = None,
                            routeTimerLabel: Option[String] = None,
