@@ -101,11 +101,11 @@ case class InternalAkkaHttpActor(port: Int, interface: String, httpsPort: Option
         }
       } ~
         path("shutdown") {
-          Harness.shutdown()
+          Harness.shutdown()(system)
           complete(s"The system is being shutdown: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
         } ~
         path("restart") {
-          Harness.restartActorSystem()
+          Harness.restartActorSystem()(system)
           complete(s"The system is being restarted: ${new DateTime(System.currentTimeMillis(), DateTimeZone.UTC)}")
         }
     }

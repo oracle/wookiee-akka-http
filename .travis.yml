@@ -21,9 +21,7 @@ env:
 
 matrix:
   include:
-    - scala: '2.11.12'
-      env: SCALAVER=2.11
-    - scala: '2.12.6'
+    - scala: '2.12.11'
       env: SCALAVER=2.12
 
 cache:

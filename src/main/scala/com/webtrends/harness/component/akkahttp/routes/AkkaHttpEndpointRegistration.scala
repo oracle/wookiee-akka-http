@@ -16,20 +16,39 @@
 
 package com.webtrends.harness.component.akkahttp.routes
 
-import akka.http.scaladsl.model.{HttpHeader, HttpMethod}
+import java.util.concurrent.TimeUnit
+
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethod, HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Route
+import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
 import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger}
 import com.webtrends.harness.utils.ConfigUtil
+import AkkaHttpEndpointRegistration._
 
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 object EndpointType extends Enumeration {
   type EndpointType = Value
   val INTERNAL, EXTERNAL, BOTH = Value
+}
+
+// These are all of the more optional bits of configuring an endpoint
+case class EndpointOptions(
+                           accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
+                           defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader],
+                           corsSettings: Option[CorsSettings] = None,
+                           routeTimerLabel: Option[String] = None,
+                           requestHandlerTimerLabel: Option[String] = None,
+                           businessLogicTimerLabel: Option[String] = None,
+                           responseHandlerTimerLabel: Option[String] = None
+                         )
+object EndpointOptions {
+  val default: EndpointOptions = EndpointOptions()
 }
 
 trait AkkaHttpEndpointRegistration {
@@ -48,15 +67,26 @@ trait AkkaHttpEndpointRegistration {
                                                                businessLogic: T => Future[U],
                                                                responseHandler: U => Route,
                                                                errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                               accessLogIdGetter: AkkaHttpRequest => String = _ => "-",
-                                                               enableCors: Boolean = false,
-                                                               defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader]
-                                                              )(implicit ec: ExecutionContext): Unit = {
+                                                               options: EndpointOptions = EndpointOptions.default
+                                                              )(implicit
+                                                                ec: ExecutionContext,
+                                                                responseTimeout: Option[FiniteDuration] = None,
+                                                                timeoutHandler: Option[HttpRequest => HttpResponse] = None
+                                                              ): Unit = {
 
-    val accessLogger =  if (accessLoggingEnabled) Some(accessLogIdGetter) else None
+    val sysTo = FiniteDuration(config.getDuration("akka.http.server.request-timeout").toNanos, TimeUnit.NANOSECONDS)
+    val timeout = responseTimeout match {
+      case Some(to) if to > sysTo =>
+        log.warning(s"Time out of ${to.toMillis}ms for $method $path exceeds system max time out of ${sysTo.toMillis}ms.")
+        sysTo
+      case Some(to) => to
+      case None => sysTo
+    }
+
     addCommand(name, businessLogic).map { ref =>
         val route = RouteGenerator
-          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, accessLogger, enableCors, defaultHeaders)
+          .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, timeout,
+            timeoutHandler.getOrElse(defaultTimeoutResponse), options, accessLoggingEnabled)
 
         endpointType match {
           case EndpointType.INTERNAL =>
@@ -71,3 +101,11 @@ trait AkkaHttpEndpointRegistration {
     }
 }
 
+object AkkaHttpEndpointRegistration {
+  def defaultTimeoutResponse(request: HttpRequest): HttpResponse = {
+    HttpResponse(
+      StatusCodes.ServiceUnavailable,
+      entity = HttpEntity(ContentTypes.`application/json`, s"""{"error": "${StatusCodes.ServiceUnavailable.defaultMessage}"}""")
+    )
+  }
+}

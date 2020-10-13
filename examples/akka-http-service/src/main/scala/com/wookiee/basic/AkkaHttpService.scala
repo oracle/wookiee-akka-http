@@ -20,7 +20,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.HttpMethods
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, EndpointType}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, EndpointType, EndpointOptions}
 import com.webtrends.harness.service.Service
 import com.wookiee.basic.handlers.Auth.rejectReport1Calls
 import com.wookiee.basic.handlers.Logic.echo
@@ -50,7 +50,7 @@ class AkkaHttpService extends Service with AkkaHttpEndpointRegistration {
       echo[Message],
       stringResponse,
       authorizationRejections,
-      _ => "myId"
+      EndpointOptions.default.copy(accessLogIdGetter = _ => "myId")
     )
 
     // POST endpoint

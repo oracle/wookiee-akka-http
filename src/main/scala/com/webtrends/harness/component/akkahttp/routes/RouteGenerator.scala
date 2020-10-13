@@ -21,24 +21,28 @@ import java.util.Locale.LanguageRange
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Origin, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Origin`, `Access-Control-Expose-Headers`}
 import akka.http.scaladsl.server.Directives.{path => p, _}
 import akka.http.scaladsl.server.RouteResult.{Complete, Rejected}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.directives.BasicDirectives.provide
+import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
 import akka.util.Timeout
+import ch.megard.akka.http.cors.javadsl
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives.corsRejectionHandler
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.command.ExecuteCommand
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
+import com.webtrends.harness.component.metrics.TimerStopwatch
 import com.webtrends.harness.logging.Logger
 
+import scala.collection.JavaConverters._
 import scala.collection.immutable
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
-import scala.collection.JavaConverters._
 
 
 trait AkkaHttpParameters
@@ -65,43 +69,56 @@ object RouteGenerator {
                                                 requestHandler: AkkaHttpRequest => Future[T],
                                                 responseHandler: V => Route,
                                                 errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                                                accessLogIdGetter: Option[AkkaHttpRequest => String] = None,
-                                                enableCors: Boolean = false,
-                                                defaultHeaders: Seq[HttpHeader] = Seq.empty[HttpHeader])
-                                               (implicit ec: ExecutionContext, log: Logger, timeout: Timeout): Route = {
-
+                                                responseTimeout: FiniteDuration,
+                                                timeoutHandler: HttpRequest => HttpResponse,
+                                                options: EndpointOptions = EndpointOptions.default,
+                                                accessLoggingEnabled: Boolean = false)
+                                               (implicit ec: ExecutionContext, log: Logger): Route = {
+    val accessLogger =  if (accessLoggingEnabled) Some(options.accessLogIdGetter) else None
     val httpPath = parseRouteSegments(path)
-    httpPath { segments: AkkaHttpPathSegments =>
-      respondWithHeaders(defaultHeaders: _*) {
-        corsSupport(method, enableCors) {
-          httpMethod(method) {
-            parameterMap { paramMap: Map[String, String] =>
-              extractRequest { request =>
-                val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-                val httpEntity = getPayload(method, request)
-                val locales = requestLocales(reqHeaders)
-                val reqWrapper = AkkaHttpRequest(path, paramHoldersToList(segments), request.method, request.protocol,
-                  reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
-                // http request handlers should be built with authorization in mind.
-                onComplete((for {
-                  requestObjs <- requestHandler(reqWrapper)
-                  commandResult <- (commandRef ? ExecuteCommand("", requestObjs, timeout))
-                } yield responseHandler(commandResult.asInstanceOf[V])).recover(errorHandler(reqWrapper))) {
-                  case Success(route: Route) =>
-                    mapRouteResult {
-                      case Complete(response) =>
-                        accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
-                        Complete(response)
-                      case Rejected(rejections) =>
-                        // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
-                        ???
-                    }(route)
-                  case Failure(ex: Throwable) =>
-                    val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
-                      .getOrElse(ex.getClass.getSimpleName)
-                    log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
-                    accessLogIdGetter.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
-                    complete(StatusCodes.InternalServerError, "There was an internal server error.")
+    ignoreTrailingSlash {
+      httpPath { segments: AkkaHttpPathSegments =>
+        respondWithHeaders(options.defaultHeaders: _*) {
+          parameterMap { paramMap: Map[String, String] =>
+            val routeTimer = options.routeTimerLabel.map(TimerStopwatch(_))
+            extractRequest { request =>
+              val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+              val httpEntity = getPayload(method, request)
+              val locales = requestLocales(reqHeaders)
+              val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
+                reqHeaders, paramMap, System.currentTimeMillis(), locales, httpEntity)
+              corsSupport(method, options.corsSettings, reqWrapper, accessLogger) {
+                httpMethod(method) {
+                  // Timeout behavior requires that CORS has already been enforced
+                  withRequestTimeout(responseTimeout, req => timeoutCors(req, timeoutHandler(req), options.corsSettings)) {
+                    // http request handlers should be built with authorization in mind.
+                    implicit val akkaTimeout: Timeout = responseTimeout
+                    onComplete((for {
+                      requestObjs <- maybeTimeF(options.requestHandlerTimerLabel,
+                        {requestHandler(reqWrapper)})
+                      commandResult <- maybeTimeF(options.businessLogicTimerLabel,
+                        {commandRef ? ExecuteCommand("", requestObjs, responseTimeout)})
+                    } yield maybeTime(options.responseHandlerTimerLabel, {responseHandler(commandResult.asInstanceOf[V])}))
+                      .recover(errorHandler(reqWrapper))) {
+                        case Success(route: Route) =>
+                          mapRouteResult {
+                            case Complete(response) =>
+                              accessLogger.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), response.status))
+                              routeTimer.foreach(finishTimer(_, response.status.intValue))
+                              Complete(response)
+                            case Rejected(rejections) =>
+                              // TODO: Current expectation is that user's errorHandler should already handle rejections before this point
+                              ???
+                          }(route)
+                        case Failure(ex: Throwable) =>
+                          val firstClass = ex.getStackTrace.headOption.map(_.getClassName)
+                            .getOrElse(ex.getClass.getSimpleName)
+                          log.warn(s"Unhandled Error [$firstClass - '${ex.getMessage}'], update rejection handlers for path: ${path}", ex)
+                          accessLogger.foreach(g => AccessLog.logAccess(reqWrapper, g(reqWrapper), StatusCodes.InternalServerError))
+                          routeTimer.foreach(finishTimer(_, StatusCodes.InternalServerError.intValue))
+                          complete(StatusCodes.InternalServerError, "There was an internal server error.")
+                      }
+                  }
                 }
               }
             }
@@ -109,6 +126,43 @@ object RouteGenerator {
         }
       }
     }
+  }
+
+  private def maybeTime[T](timerLabel: Option[String], toRun: => T): T = {
+    timerLabel match {
+      case Some(label) =>
+        TimerStopwatch.tryWrapper(label)({toRun})
+      case None =>
+        toRun
+    }
+  }
+
+  private def maybeTimeF[T](timerLabel: Option[String], toRun: => Future[T])(implicit ec: ExecutionContext): Future[T] = {
+    timerLabel match {
+      case Some(label) =>
+        TimerStopwatch.futureWrapper(label)({toRun})
+      case None =>
+        toRun
+    }
+  }
+
+  // At this point in the route, the CORS directive has already been applied, meaning that pre-flight requests have
+  // already been handled and any invalid requests have  been rejected.
+  // Rather than re-apply the CORS logic here (which isn't accessible) we simply echo back the request origin to allow
+  // clients to handle the timeout response correctly
+  private def timeoutCors(request: HttpRequest, response: HttpResponse, cors: Option[CorsSettings]): HttpResponse = {
+    response.copy(
+      headers = response.headers ++ ((cors, request.header[Origin]) match {
+        case (Some(c), Some(o)) =>
+          List(
+            Some(`Access-Control-Allow-Origin`(o.origins.head)),
+            if (c.allowCredentials) Some(`Access-Control-Allow-Credentials`(true)) else None,
+            if (c.exposedHeaders.nonEmpty) Some(`Access-Control-Expose-Headers`(c.exposedHeaders)) else None
+          ).flatten
+        case _ =>
+          List()
+      })
+    )
   }
 
   // TODO: #129
@@ -187,18 +241,20 @@ object RouteGenerator {
       case _ => List()
     }
 
-  def getPayload(method: HttpMethod, request:HttpRequest):Option[RequestEntity] = method match {
-    case HttpMethods.PUT | HttpMethods.POST => Some(request.entity)
+  def getPayload(method: HttpMethod, request: HttpRequest): Option[RequestEntity] = method match {
+    case HttpMethods.PUT | HttpMethods.POST | HttpMethods.PATCH => Some(request.entity)
     case _ => None
   }
 
-  private def corsSupport(method: HttpMethod, enableCors: Boolean): Directive0 = {
-    if (enableCors) {
-      handleRejections(corsRejectionHandler) & CorsDirectives.cors(corsSettings(immutable.Seq(method)))
-    } else {
-      pass
+  private def corsSupport(method: HttpMethod,
+                          corsSettings: Option[CorsSettings],
+                          request: AkkaHttpRequest,
+                          accessLogIdGetter: Option[AkkaHttpRequest => String]): Directive0 =
+    corsSettings match {
+      case Some(cors) => handleRejections(corsRejectionHandler(request, accessLogIdGetter)) &
+        CorsDirectives.cors(cors.withAllowedMethods((cors.allowedMethods ++ immutable.Seq(method)).distinct))
+      case None => pass
     }
-  }
 
   def httpMethod(method: HttpMethod): Directive0 = method match {
     case HttpMethods.GET => get
@@ -209,14 +265,28 @@ object RouteGenerator {
     case HttpMethods.PATCH => patch
   }
 
-  private def corsSettings(allowedMethods: immutable.Seq[HttpMethod]): CorsSettings =
-    CorsSettings.defaultSettings.withAllowedMethods(allowedMethods)
-
-   def requestLocales(headers: Map[String, String]): List[Locale] =
-     headers.get("accept-language") match {
+  def requestLocales(headers: Map[String, String]): List[Locale] =
+    headers.get("accept-language") match {
       case Some(localeString) if localeString.nonEmpty => LanguageRange.parse(localeString).asScala
         .map(language => Locale.forLanguageTag(language.getRange)).toList
       case _ => Nil
+    }
+
+  private def corsRejectionHandler(request: AkkaHttpRequest, accessLogIdGetter: Option[AkkaHttpRequest => String]): RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handleAll[javadsl.CorsRejection] { rejections =>
+        val causes = rejections.map(_.cause.description).mkString(", ")
+        accessLogIdGetter.foreach(g => AccessLog.logAccess(request, g(request), StatusCodes.Forbidden))
+        complete((StatusCodes.Forbidden, s"CORS: $causes"))
+      }
+      .result()
+
+  private def finishTimer(timer: TimerStopwatch, statusCode: Int): Unit =
+    statusCode match {
+      case n if n >= 200 && n < 400 => timer.success
+      case n if n >= 400 && n < 500 => timer.failure("request")
+      case _ => timer.failure("server")
     }
 
 }
