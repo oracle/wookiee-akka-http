@@ -1,20 +1,17 @@
 package com.webtrends.harness.component.akkahttp
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, Uri}
 import akka.stream.ActorMaterializer
-import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigFactory.defaultReference
 import com.webtrends.harness.component.akkahttp.routes.InternalAkkaHttpActor
-import org.scalatest.{MustMatchers, WordSpecLike}
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContextExecutor}
+import scala.concurrent.ExecutionContextExecutor
 
-class AkkaHttpManagerTest extends WordSpecLike
-  with MustMatchers {
+class AkkaHttpManagerTest extends AnyWordSpecLike
+  with Matchers {
 
   "Akka Http Manager" should {
     val baseConfig =

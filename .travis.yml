@@ -21,15 +21,8 @@ env:
 
 matrix:
   include:
-    - scala: '2.11.12'
-      env: SCALAVER=2.11
-    - scala: '2.12.6'
+    - scala: '2.12.11'
       env: SCALAVER=2.12
-
-branches:
-  only:
-    - master
-    - /^[0-9]+\.[0-9]+\.[0-9]+$/
 
 cache:
   directories:
@@ -44,11 +37,17 @@ install: true
 
 script:
   - |
-    if [ "$TRAVIS_TAG" != "" ]; then
-      mvn versions:set -DnewVersion=$TRAVIS_TAG
-    fi
-  - |
     if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
+      if [ "$TRAVIS_TAG" != "" ]; then
+        mvn versions:set -DnewVersion="$TRAVIS_TAG"
+      else
+        VERS=`mvn org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate -Dexpression=project.version | sed -n -e '/^\[.*\]/ !{ /^[0-9]/ { p; q } }' | sed "s/SNAPSHOT/$TRAVIS_BRANCH-SNAPSHOT/"`
+
+        echo "Version:"
+        echo "$VERS"
+        mvn versions:set -DnewVersion="$VERS"
+      fi
+
       mvn deploy --settings target/travis/settings.xml
     fi
   - |

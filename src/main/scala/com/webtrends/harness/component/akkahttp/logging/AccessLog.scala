@@ -1,36 +1,40 @@
+/*
+ *  Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
 package com.webtrends.harness.component.akkahttp.logging
 
-import akka.http.scaladsl.model.{DateTime, HttpRequest, StatusCode}
-import com.webtrends.harness.command.{BaseCommand, CommandBean}
-import com.webtrends.harness.component.akkahttp.AkkaHttpBase.TimeOfRequest
-import com.webtrends.harness.component.akkahttp.logging.AccessLog._
+import akka.http.scaladsl.model.{DateTime, StatusCode}
+import com.webtrends.harness.component.akkahttp.routes.AkkaHttpRequest
 import com.webtrends.harness.logging.Logger
 
-trait AccessLog  {
-  this: BaseCommand =>
-
+object AccessLog  {
+  val host: String = java.net.InetAddress.getLocalHost.getHostName
   val accessLog = Logger("AccessLog")
 
-  // Override to obtain the id
-  // id is no longer limited to user, with oauth or other authentication/authorization there are other ids to consider.
-  // Like client id.
-  def getAccessLogId(bean: CommandBean): Option[String] = {
-    None
-  }
-
-  def logAccess(request: HttpRequest, bean: CommandBean, statusCode: Option[StatusCode]) = if (accessLoggingEnabled) {
+  def logAccess(request: AkkaHttpRequest, accessLogId: String, statusCode: StatusCode) = {
 
     // modify the logback.xml file to write the "AccessLog" entries to a file without all of the prefix information
     try {
-      val id: String = getAccessLogId(bean).getOrElse("-")
-      val status: String = statusCode.map(sc => sc.intValue.toString).getOrElse("-")
+      val status: String = statusCode.intValue.toString
       val responseTimestamp: Long = System.currentTimeMillis()
-      val requestTimestamp: Long = bean.getValue[Long](TimeOfRequest).getOrElse(responseTimestamp)
+      val requestTimestamp: Long = request.time
       val elapsedTime: Long = responseTimestamp - requestTimestamp
       val requestTime: String = DateTime(requestTimestamp).toIsoDateTimeString()
-      val headers = request.headers
-      val origin = headers.find(header => header.name() == "Origin").map(_.value()).getOrElse("-")
-      val user_agent = headers.find(header => header.name() == "User-Agent").map(_.value()).getOrElse("-")
+      val origin = request.requestHeaders.getOrElse("origin", "-")
+      val userAgent = request.requestHeaders.getOrElse("user-agent", "-")
 
       /*
           LogFormat "%h %l %u %t \"%r\" %>s %b %{ms} %o %uaT"
@@ -49,16 +53,11 @@ trait AccessLog  {
 
           see https://httpd.apache.org/docs/2.4/logs.html
       */
-      accessLog.info( s"""${AccessLog.host} - $id [$requestTime] "${request.method.value} ${request.uri} ${request.protocol.value}" $status - $elapsedTime - $origin - $user_agent""")
+      accessLog.info( s"""${AccessLog.host} - $accessLogId [$requestTime] "${request.method.value} ${request.path} ${request.protocol.value}" $status - $elapsedTime - $origin - $userAgent""")
 
     } catch {
       case e: Exception =>
         accessLog.error("Could not construct access log", e)
     }
   }
-}
-
-object AccessLog {
-  var accessLoggingEnabled = true
-  val host: String = java.net.InetAddress.getLocalHost.getHostName
 }
