@@ -16,25 +16,19 @@
 
 package com.webtrends.harness.component.akkahttp
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorRef
 import akka.http.scaladsl.settings.ServerSettings
 import com.typesafe.config.Config
 import com.webtrends.harness.component.Component
-import com.webtrends.harness.component.akkahttp.logging.AccessLog
+import com.webtrends.harness.component.akkahttp.AkkaHttpManager._
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
 import com.webtrends.harness.logging.Logger
 import com.webtrends.harness.utils.ConfigUtil
-import AkkaHttpManager._
-
-import scala.concurrent.duration._
-import scala.util.Try
 
 case class AkkaHttpMessage()
 
 class AkkaHttpManager(name:String) extends Component(name) {
-  val settings = AkkaHttpSettings(config)
+  val settings: AkkaHttpSettings = AkkaHttpSettings(config)
   val starMonitor = new Object()
 
   var internalAkkaHttpRef: Option[ActorRef] = None
@@ -109,7 +103,7 @@ final case class InternalAkkaHttpSettings(interface: String, port: Int, serverSe
 final case class ExternalAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
                                           serverSettings: ServerSettings, httpsPort: Option[Int])
 final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int, httpsPort: Option[Int],
-                                           serverSettings: ServerSettings, keepAliveFrequency: FiniteDuration, keepAliveOn: Boolean)
+                                           serverSettings: ServerSettings)
 final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: ExternalAkkaHttpSettings,
                                   ws: WebsocketAkkaHttpSettings)
 
@@ -143,18 +137,13 @@ object AkkaHttpSettings {
     val wssPort = getHttps(WebsocketServer)
     val wsInterface = ConfigUtil.getDefaultValue(
       s"$ComponentName.$WebsocketServer.interface", config.getString, "0.0.0.0")
-    // How often to send a keep alive heartbeat message back
-    val keepAliveFrequency: FiniteDuration = Try(config.getDuration(
-      s"$ComponentName.websocket-keep-alives.interval", TimeUnit.SECONDS).toInt).getOrElse(30) seconds
-    val keepAliveOn: Boolean = Try(config.getBoolean(
-      s"$ComponentName.websocket-keep-alives.enabled")).getOrElse(false)
     val serverSettings = ServerSettings(config)
 
 
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings, internalHttpsPort),
       ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings, externalHttpsPort),
-      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, wssPort, serverSettings, keepAliveFrequency, keepAliveOn)
+      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, wssPort, serverSettings)
     )
   }
 }

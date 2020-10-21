@@ -27,10 +27,10 @@ trait RouteContainers {
     }
   }
 
-  def isEmpty = routes.isEmpty
-  def getRoutes = routes.toList
+  def isEmpty: Boolean = routes.isEmpty
+  def getRoutes: List[Route] = routes.toList
 
-  def clearRoutes() = {
+  def clearRoutes(): Unit = {
     routes.synchronized {
       routes.clear()
     }
