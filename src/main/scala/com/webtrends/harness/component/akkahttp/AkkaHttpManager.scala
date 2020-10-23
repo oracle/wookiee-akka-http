@@ -32,7 +32,6 @@ class AkkaHttpManager(name:String) extends Component(name) {
 
   var internalAkkaHttpRef: Option[ActorRef] = None
   var externalAkkaHttpRef: Option[ActorRef] = None
-  var wsAkkaHttpRef: Option[ActorRef] = None
   implicit val logger: Logger = log
 
   def startAkkaHttp(): Unit = {
@@ -47,15 +46,13 @@ class AkkaHttpManager(name:String) extends Component(name) {
   }
 
   def stopAkkaHttp(): Unit = {
-    Seq(internalAkkaHttpRef, externalAkkaHttpRef, wsAkkaHttpRef).flatten.foreach(_ ! AkkaHttpUnbind)
+    Seq(internalAkkaHttpRef, externalAkkaHttpRef).flatten.foreach(_ ! AkkaHttpUnbind)
   }
 
   /**
    * We add super.receive because if you override the receive message from the component
    * and then do not include super.receive it will not handle messages from the
    * ComponentManager correctly and basically not start up properly
-   *
-   * @return
    */
   override def receive: PartialFunction[Any, Unit] = super.receive orElse {
     case AkkaHttpMessage => println("DO SOMETHING HERE")
@@ -63,8 +60,6 @@ class AkkaHttpManager(name:String) extends Component(name) {
 
   /**
    * Start function will start any child actors that will be managed by the ComponentManager
-    *
-    * @return
    */
   override def start: Unit = {
     startAkkaHttp()
@@ -74,8 +69,6 @@ class AkkaHttpManager(name:String) extends Component(name) {
   /**
    * Stop will execute any cleanup work to be done for the child actors
    * if not necessary this can be deleted
-    *
-    * @return
    */
   override def stop: Unit = {
     stopAkkaHttp()
