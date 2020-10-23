@@ -19,6 +19,7 @@ package com.webtrends.harness.component.akkahttp.routes
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{HttpEncoding, `Content-Encoding`}
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives.{extractRequest, ignoreTrailingSlash, _}
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
@@ -165,21 +166,26 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
         extractRequest { request =>
           parameterMap { paramMap: Map[String, String] =>
             val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-            val locales = requestLocales(reqHeaders)
-            val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
-              reqHeaders, paramMap, System.currentTimeMillis(), locales, None)
+            val compressList = AkkaHttpWebsocket.chosenCompression(reqHeaders)
+              .map(cType => `Content-Encoding`(HttpEncoding(cType.algorithm))).toList
 
-            handleExceptions(ExceptionHandler({
-              case ex: ExecutionException =>
-                authErrorHandler(reqWrapper)(ex.getCause)
-              case t: Throwable =>
-                authErrorHandler(reqWrapper)(t)
-            })) {
-              onSuccess(authHandler(reqWrapper)) { auth =>
-                val ws = new AkkaHttpWebsocket(auth, inputHandler,
-                  businessLogic, responseHandler, onClose, wsErrorHandler, options)
+            respondWithHeaders(compressList) {
+              val locales = requestLocales(reqHeaders)
+              val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
+                reqHeaders, paramMap, System.currentTimeMillis(), locales, None)
 
-                handleWebSocketMessages(ws.websocketHandler(reqWrapper))
+              handleExceptions(ExceptionHandler({
+                case ex: ExecutionException =>
+                  authErrorHandler(reqWrapper)(ex.getCause)
+                case t: Throwable =>
+                  authErrorHandler(reqWrapper)(t)
+              })) {
+                onSuccess(authHandler(reqWrapper)) { auth =>
+                  val ws = new AkkaHttpWebsocket(auth, inputHandler,
+                    businessLogic, responseHandler, onClose, wsErrorHandler, options)
+
+                  handleWebSocketMessages(ws.websocketHandler(reqWrapper))
+                }
               }
             }
           }
