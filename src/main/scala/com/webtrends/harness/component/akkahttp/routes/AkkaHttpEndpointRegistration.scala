@@ -18,18 +18,27 @@ package com.webtrends.harness.component.akkahttp.routes
 
 import java.util.concurrent.TimeUnit
 
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethod, HttpRequest, HttpResponse, StatusCodes}
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{HttpEncoding, `Content-Encoding`}
+import akka.http.scaladsl.model.ws.TextMessage
+import akka.http.scaladsl.server.Directives.{extractRequest, ignoreTrailingSlash, _}
+import akka.http.scaladsl.server.{ExceptionHandler, Route}
+import akka.stream.Supervision.Directive
+import akka.stream.{Materializer, Supervision}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
-import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger}
+import com.webtrends.harness.component.akkahttp.routes.EndpointType.EndpointType
+import com.webtrends.harness.component.akkahttp.routes.RouteGenerator.{paramHoldersToList, parseRouteSegments, requestLocales}
+import com.webtrends.harness.component.akkahttp.websocket.AkkaHttpWebsocket
+import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger, LoggingAdapter}
 import com.webtrends.harness.utils.ConfigUtil
-import AkkaHttpEndpointRegistration._
+import org.json4s.DefaultFormats
+import org.json4s.jackson.Serialization.write
 
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, ExecutionException, Future}
 import scala.reflect.ClassTag
 
 object EndpointType extends Enumeration {
@@ -53,7 +62,7 @@ object EndpointOptions {
 
 trait AkkaHttpEndpointRegistration {
   this: CommandHelper with ActorLoggingAdapter with HActor =>
-
+  import AkkaHttpEndpointRegistration._
   private val accessLoggingEnabled = ConfigUtil.getDefaultValue(
     s"${AkkaHttpManager.ComponentName}.access-logging.enabled", config.getBoolean, true)
   if (accessLoggingEnabled) log.info("Access Logging Enabled") else log.info("Access Logging Disabled")
@@ -88,24 +97,127 @@ trait AkkaHttpEndpointRegistration {
           .makeHttpRoute(path, method, ref, requestHandler, responseHandler, errorHandler, timeout,
             timeoutHandler.getOrElse(defaultTimeoutResponse), options, accessLoggingEnabled)
 
-        endpointType match {
-          case EndpointType.INTERNAL =>
-            InternalAkkaHttpRouteContainer.addRoute(route)
-          case EndpointType.EXTERNAL =>
-            ExternalAkkaHttpRouteContainer.addRoute(route)
-          case EndpointType.BOTH =>
-            ExternalAkkaHttpRouteContainer.addRoute(route)
-            InternalAkkaHttpRouteContainer.addRoute(route)
-        }
-      }
+        addRoute(endpointType, route)
     }
+  }
+
+
+  /**
+   * Main method used to register a websocket. Has native support for compression based on the 'Accept-Encoding' header
+   * provided on the request. The given functions will be called in the order they are passed
+   *
+   * @param path Path to access this WS, can add query segments with '$', e.g. "/some/$param/in/path"
+   * @param authHandler Handle auth here before request, if an exception is thrown it will bubble up to 'errorHandler'
+   * @param inputHandler Meant to convert a TextMessage into our main 'T' input type, will be provided with the auth object from 'authHandler'
+   * @param businessLogic Main business logic for this WS, takes input type 'T' and outputs type 'U'
+   * @param responseHandler Logic to parse output type 'U' back to a TextMessage so it can be returned to client
+   * @param onClose Logic to be called when a WS closes, good for resource cleanup, can be empty
+   * @param authErrorHandler Handling logic in case an error is thrown during the 'authHandler' step
+   * @param wsErrorHandler Handling logic in case an uncaught error is thrown during from the 'inputHandler' to the 'responseHandler'
+   *                       steps, should return one of 'akka.stream.Supervision.Stop/Resume/Restart' based on the error
+   * @param options Options for this endpoint, not all fields are used in the WS case
+   *
+   * @tparam A Class that can be used to hold auth information in case downstream requires it
+   * @tparam I The main input type we should expect, will want to create a parser from TextMessage to it in 'inputHandler'
+   * @tparam O The main output type we should expect, will want to parse it back to a TextMessage in 'responseHandler'
+   */
+  def addAkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : ClassTag](
+    path: String,
+    endpointType: EndpointType.EndpointType,
+    authHandler: AkkaHttpRequest => Future[A],
+    inputHandler: (A, TextMessage) => Future[I],
+    businessLogic: I => Future[O],
+    responseHandler: O => TextMessage,
+    onClose: A => Unit = {_: A => ()},
+    authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
+    wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
+    options: EndpointOptions = EndpointOptions.default
+    )(implicit ec: ExecutionContext, mat: Materializer): Unit = {
+    addAkkaWebsocketEndpoint(path, endpointType, authHandler, inputHandler,
+      businessLogic, responseHandler, onClose, authErrorHandler, wsErrorHandler, options)
+  }
 }
 
-object AkkaHttpEndpointRegistration {
+object AkkaHttpEndpointRegistration extends LoggingAdapter {
+  case class ErrorHolder(error: String)
   def defaultTimeoutResponse(request: HttpRequest): HttpResponse = {
     HttpResponse(
       StatusCodes.ServiceUnavailable,
       entity = HttpEntity(ContentTypes.`application/json`, s"""{"error": "${StatusCodes.ServiceUnavailable.defaultMessage}"}""")
     )
+  }
+
+  // This works just as well as the corresponding method in the trait but doesn't require extending an actor to call
+  def addAkkaWebsocketEndpoint[I: ClassTag, O <: Product : ClassTag, A <: Product : ClassTag](
+                                                     path: String,
+                                                     endpointType: EndpointType.EndpointType,
+                                                     authHandler: AkkaHttpRequest => Future[A],
+                                                     inputHandler: (A, TextMessage) => Future[I],
+                                                     businessLogic: I => Future[O],
+                                                     responseHandler: O => TextMessage,
+                                                     onClose: A => Unit = {_: A => ()},
+                                                     authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
+                                                     wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
+                                                     options: EndpointOptions = EndpointOptions.default)
+                                                     (implicit ec: ExecutionContext, mat: Materializer): Unit = {
+    val httpPath = parseRouteSegments(path)(log)
+    val route = ignoreTrailingSlash {
+      httpPath { segments: AkkaHttpPathSegments =>
+        extractRequest { request =>
+          parameterMap { paramMap: Map[String, String] =>
+            val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
+            val compressList = AkkaHttpWebsocket.chosenCompression(reqHeaders)
+              .map(cType => `Content-Encoding`(HttpEncoding(cType.algorithm))).toList
+
+            respondWithHeaders(compressList) {
+              val locales = requestLocales(reqHeaders)
+              val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
+                reqHeaders, paramMap, System.currentTimeMillis(), locales, None)
+
+              handleExceptions(ExceptionHandler({
+                case ex: ExecutionException =>
+                  authErrorHandler(reqWrapper)(ex.getCause)
+                case t: Throwable =>
+                  authErrorHandler(reqWrapper)(t)
+              })) {
+                onSuccess(authHandler(reqWrapper)) { auth =>
+                  val ws = new AkkaHttpWebsocket(auth, inputHandler,
+                    businessLogic, responseHandler, onClose, wsErrorHandler, options)
+
+                  handleWebSocketMessages(ws.websocketHandler(reqWrapper))
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    log.info(s"Adding Websocket on path $path to routes")
+    addRoute(endpointType, route)
+  }
+
+  protected[harness] def addRoute(endpointType: EndpointType, route: Route): Unit = {
+    endpointType match {
+      case EndpointType.INTERNAL =>
+        InternalAkkaHttpRouteContainer.addRoute(route)
+      case EndpointType.EXTERNAL =>
+        ExternalAkkaHttpRouteContainer.addRoute(route)
+      case EndpointType.BOTH =>
+        ExternalAkkaHttpRouteContainer.addRoute(route)
+        InternalAkkaHttpRouteContainer.addRoute(route)
+    }
+  }
+
+  val authErrorDefaultHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = { req: AkkaHttpRequest => {
+    case err: Throwable =>
+      implicit val formats: DefaultFormats.type = DefaultFormats
+      log.warn(s"Error in processing Auth for request on path [${req.path}]", err)
+      complete(write(ErrorHolder(err.getMessage)))
+  }}
+
+  val wsErrorDefaultHandler: PartialFunction[Throwable, Directive] = { case err: Throwable =>
+    log.warn("Websocket message encountered unexpected error, skipping event", err)
+    Supervision.Resume
   }
 }
