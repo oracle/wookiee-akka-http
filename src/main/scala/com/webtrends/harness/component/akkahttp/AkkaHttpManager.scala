@@ -13,7 +13,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package com.webtrends.harness.component.akkahttp
 
 import akka.actor.ActorRef
@@ -21,7 +20,7 @@ import akka.http.scaladsl.settings.ServerSettings
 import com.typesafe.config.Config
 import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager._
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor, WebsocketAkkaHttpActor}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpUnbind, ExternalAkkaHttpActor, InternalAkkaHttpActor}
 import com.webtrends.harness.logging.Logger
 import com.webtrends.harness.utils.ConfigUtil
 
@@ -42,9 +41,6 @@ class AkkaHttpManager(name:String) extends Component(name) {
       internalAkkaHttpRef = Some(context.actorOf(InternalAkkaHttpActor.props(settings.internal), AkkaHttpManager.InternalAkkaHttpName))
       if (settings.external.enabled) {
         externalAkkaHttpRef = Some(context.actorOf(ExternalAkkaHttpActor.props(settings.external), AkkaHttpManager.ExternalAkkaHttpName))
-      }
-      if (settings.ws.enabled) {
-        wsAkkaHttpRef = Some(context.actorOf(WebsocketAkkaHttpActor.props(settings.ws), AkkaHttpManager.WebsocketAkkaHttpName))
       }
       log.info("Wookiee Akka HTTP Actors Ready, Request Line is Open!")
     }
@@ -96,21 +92,16 @@ object AkkaHttpManager {
 
   val ExternalAkkaHttpName = "ExternalAkkaHttp"
   val InternalAkkaHttpName = "InternalAkkaHttp"
-  val WebsocketAkkaHttpName = "WebsocketAkkaHttp"
 }
 
 final case class InternalAkkaHttpSettings(interface: String, port: Int, serverSettings: ServerSettings, httpsPort: Option[Int])
 final case class ExternalAkkaHttpSettings(enabled: Boolean, interface: String, port: Int,
                                           serverSettings: ServerSettings, httpsPort: Option[Int])
-final case class WebsocketAkkaHttpSettings(enabled: Boolean, interface: String, port: Int, httpsPort: Option[Int],
-                                           serverSettings: ServerSettings)
-final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: ExternalAkkaHttpSettings,
-                                  ws: WebsocketAkkaHttpSettings)
+final case class AkkaHttpSettings(internal: InternalAkkaHttpSettings, external: ExternalAkkaHttpSettings)
 
 object AkkaHttpSettings {
   val InternalServer = "internal-server"
   val ExternalServer = "external-server"
-  val WebsocketServer = "websocket-server"
 
   def apply(config: Config): AkkaHttpSettings = {
     def getHttps(server: String): Option[Int] = {
@@ -130,20 +121,11 @@ object AkkaHttpSettings {
     val externalHttpsPort = getHttps(ExternalServer)
     val externalInterface = ConfigUtil.getDefaultValue(
       s"$ComponentName.$ExternalServer.interface", config.getString, "0.0.0.0")
-    val wsEnabled = ConfigUtil.getDefaultValue(
-      s"$ComponentName.$WebsocketServer.enabled", config.getBoolean, false)
-    val wsPort = ConfigUtil.getDefaultValue(
-      s"$ComponentName.$WebsocketServer.port", config.getInt, 8081)
-    val wssPort = getHttps(WebsocketServer)
-    val wsInterface = ConfigUtil.getDefaultValue(
-      s"$ComponentName.$WebsocketServer.interface", config.getString, "0.0.0.0")
     val serverSettings = ServerSettings(config)
-
 
     AkkaHttpSettings(
       InternalAkkaHttpSettings(internalInterface, internalPort, serverSettings, internalHttpsPort),
-      ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings, externalHttpsPort),
-      WebsocketAkkaHttpSettings(wsEnabled, wsInterface, wsPort, wssPort, serverSettings)
+      ExternalAkkaHttpSettings(externalServerEnabled, externalInterface, externalPort, serverSettings, externalHttpsPort)
     )
   }
 }

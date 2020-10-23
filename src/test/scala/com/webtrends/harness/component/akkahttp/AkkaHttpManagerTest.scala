@@ -29,12 +29,6 @@ class AkkaHttpManagerTest extends AnyWordSpecLike
         |    http-port = 8082
         |  }
         |
-        |  websocket-server {
-        |    enabled = false
-        |    interface = "localhost"
-        |    port = 8081
-        |  }
-        |
         |  static-content {
         |    root-path = "html"
         |    type = "jar"
