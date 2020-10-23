@@ -1,45 +1,54 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
+import akka.http.WSWrapper
+import akka.http.javadsl.model.headers.AcceptEncoding
+import akka.http.javadsl.model.ws.BinaryMessage
+import akka.http.scaladsl.model.headers.HttpEncodings
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, WebsocketAkkaHttpRouteContainer}
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+import akka.http.scaladsl.testkit.WSProbe
+import akka.stream.Supervision.{Resume, Stop}
+import akka.stream.scaladsl.{Compression, Sink, Source}
+import com.webtrends.harness.component.akkahttp.routes.AkkaHttpEndpointRegistration.ErrorHolder
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointType, ExternalAkkaHttpRouteContainer}
+import org.json4s.DefaultFormats
+import org.json4s.jackson.Serialization._
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
-class WebsocketTest extends AnyWordSpecLike with Matchers with ScalatestRouteTest {
+class WebsocketTest extends WSWrapper {
   case class AuthHolder(value: String)
   case class ParamHolder(p1: String, q1: String)
   case class Input(value: String)
   case class Output(value: String)
 
+  implicit val formats: DefaultFormats.type = DefaultFormats
+
+  var errorThrown: Option[Throwable] = None
+  val toOutput: Input => Future[Output] = { input: Input =>
+    println(s"got input $input")
+    Future.successful(Output(input.value + "-output")) }
+  val toText: Output => TextMessage.Strict = { resp: Output => TextMessage(resp.value) }
+
   "Websockets" should {
     implicit val ec: ExecutionContext = system.dispatcher
 
-    def routes: Route = WebsocketAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
+    def routes: Route = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
     var closed: Boolean = false
 
     AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
       "basic",
+      EndpointType.EXTERNAL,
       { _ => Future.successful(AuthHolder("none")) },
       { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
-      { input =>
-        println(s"got input $input")
-        Future.successful(Output(input.value + "-output")) },
-      { resp => TextMessage(resp.value) },
+      toOutput,
+      toText,
       { _: AuthHolder =>
         println("Called onClose")
         closed = true
-      },
-      { _ => {
-        case err: Throwable =>
-          err.printStackTrace()
-          failWith(err)
-      }}
+      }
     )
 
     "basic websocket support" in {
@@ -50,28 +59,26 @@ class WebsocketTest extends AnyWordSpecLike with Matchers with ScalatestRouteTes
           wsClient.sendMessage("abcdef")
           wsClient.expectMessage("abcdef-output")
 
+          wsClient.sendMessage("abcdef2")
+          wsClient.expectMessage("abcdef2-output")
+
           wsClient.sendCompletion()
           wsClient.expectCompletion()
 
+          Thread.sleep(500L)
           closed mustEqual true
         }
     }
 
     AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, ParamHolder](
       "param/$p1",
+      EndpointType.EXTERNAL,
       { req =>
         Future.successful(ParamHolder(req.segments.head, req.queryParams("q1"))) },
       { (params: ParamHolder, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s"${params.p1}-${params.q1}-${s.getStrictText}")) },
-      { input =>
-        println(s"got input $input")
-        Future.successful(Output(input.value + "-output")) },
-      { resp => TextMessage(resp.value) },
-      { _: ParamHolder => println("Called onClose") },
-      { _ => {
-        case err: Throwable =>
-          err.printStackTrace()
-          failWith(err)
-      }}
+      toOutput,
+      toText,
+      { _: ParamHolder => println("Called onClose") }
     )
 
     "query parameter and segment support" in {
@@ -84,6 +91,105 @@ class WebsocketTest extends AnyWordSpecLike with Matchers with ScalatestRouteTes
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()
+        }
+    }
+
+    AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, ParamHolder](
+      "error/auth",
+      EndpointType.EXTERNAL,
+      { _ => Future.failed(new IllegalAccessError("Not allowed buster!")) },
+      { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
+      toOutput,
+      toText,
+      { _: ParamHolder => println("Called onClose") },
+      { _: AkkaHttpRequest => {
+        case err: IllegalAccessError =>
+          println("Got ERROR:")
+          err.printStackTrace()
+          errorThrown = Some(err)
+          complete(write(ErrorHolder(err.getMessage)))
+      }}
+    )
+
+    "handles auth errors cleanly" in {
+      val wsClient = WSProbe()
+
+      val route = WS("/error/auth", wsClient.flow) ~> routes
+
+      val resp = Await.result(route.entity.toStrict(5.seconds).map(_.getData().utf8String), 5.seconds)
+      resp mustEqual """{"error":"Not allowed buster!"}"""
+    }
+
+    var resumeHit = false
+    AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
+      "error/ws",
+      EndpointType.EXTERNAL,
+      { _ => Future.successful(AuthHolder("none")) },
+      { (_, tm: TextMessage) =>
+        println(s"Text: ${tm.getStrictText}")
+        if (tm.getStrictText == "recover") throw new IllegalStateException("Will recover")
+        else if (tm.getStrictText == "stop") throw new RuntimeException("Will stop the stream")
+        else tm.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
+      toOutput,
+      toText,
+      { _: AuthHolder =>
+        println("Called onClose")
+        closed = true
+      },
+      wsErrorHandler = {
+        case _: IllegalStateException =>
+          println("Resume error hit")
+          resumeHit = true
+          Resume // Will skip the errant event
+        case _: RuntimeException =>
+          println("Stop error hit")
+          Stop // Will close this stream
+      }
+    )
+
+    "recover from errors during ws processing" in {
+      val wsClient = WSProbe()
+      closed = false
+
+      WS("/error/ws", wsClient.flow) ~> routes ~>
+        check {
+          wsClient.sendMessage("recover")
+          wsClient.inProbe.ensureSubscription()
+
+          wsClient.sendMessage("abcdef")
+          wsClient.expectMessage("abcdef-output")
+          resumeHit mustEqual true
+
+          wsClient.sendMessage("stop")
+          val err = wsClient.inProbe.expectError()
+          err.getMessage mustEqual "Will stop the stream"
+          closed mustEqual true
+        }
+    }
+
+    "compress data when requested via deflate" in {
+      val wsClient = WSProbe()
+
+      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.deflate)), Nil) ~> routes ~>
+        check {
+          wsClient.sendMessage("abcdef")
+
+          val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          val unzip = Source.single(bytes).via(Compression.inflate()).runWith(Sink.head)
+          "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+        }
+    }
+
+    "compress data when requested via gzip" in {
+      val wsClient = WSProbe()
+
+      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
+        check {
+          wsClient.sendMessage("abcdef")
+
+          val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          val unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
         }
     }
   }

@@ -16,37 +16,46 @@
 
 package com.webtrends.harness.component.akkahttp.websocket
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 import akka.NotUsed
-import akka.http.scaladsl.model.ws.{Message, TextMessage}
-import akka.http.scaladsl.server._
-import akka.stream.Materializer
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
+import akka.stream.Supervision.{Directive, Stop}
 import akka.stream.scaladsl.{Compression, Flow, Keep}
+import akka.stream.{ActorAttributes, Materializer}
 import akka.util.ByteString
-import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpRequest, EndpointOptions}
+import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointOptions}
+import com.webtrends.harness.logging.LoggingAdapter
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
+import scala.util.Try
 
 
 class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : ClassTag](
-                        authHolder: A,
-                        inputHandler: (A, TextMessage) => Future[I],
-                        businessLogic: I => Future[O],
-                        responseHandler: O => TextMessage,
-                        onClose: A => Unit,
-                        errorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route],
-                        options: EndpointOptions = EndpointOptions.default)(implicit ec: ExecutionContext, mat: Materializer) {
+  authHolder: A,
+  inputHandler: (A, TextMessage) => Future[I],
+  businessLogic: I => Future[O],
+  responseHandler: O => TextMessage,
+  onClose: A => Unit = {_: A => ()},
+  errorHandler: PartialFunction[Throwable, Directive] = AkkaHttpEndpointRegistration.wsErrorDefaultHandler,
+  options: EndpointOptions = EndpointOptions.default)(implicit ec: ExecutionContext, mat: Materializer) extends LoggingAdapter {
+  var closed: AtomicBoolean = new AtomicBoolean(false)
   val supported = Map("gzip" -> Compression.gzip, "deflate" -> Compression.deflate)
 
   // This the the main method to route WS messages
   def websocketHandler(req: AkkaHttpRequest): Flow[Message, Message, Any] = {
-    val compressFlow: Flow[TextMessage, TextMessage, NotUsed] = req.requestHeaders.get("accept-encoding") match {
+    val compressFlow: Flow[TextMessage, Message, NotUsed] = req.requestHeaders.get("accept-encoding") match {
       case Some(encoding) =>
         val compressOpt = supported.keySet.intersect(encoding.split(",").map(_.trim).toSet).headOption
 
         compressOpt.map {
-          key => Flow[TextMessage].map(tx => ByteString(tx.getStrictText)).via(supported(key)).map(tx => TextMessage(tx.mkString))
-        } getOrElse Flow[TextMessage]
+          key => Flow[TextMessage].map { tx =>
+            ByteString(tx.getStrictText)
+          }
+          .via(supported(key))
+          .map(tx => BinaryMessage(tx))
+        } getOrElse Flow[Message]
       case None =>
         Flow[TextMessage]
     }
@@ -55,17 +64,41 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
       .mapAsync(1) {
         case tm: TextMessage =>
           for {
-            input <- inputHandler(authHolder, tm)
-            result <- businessLogic(input)
+            input <- tryWrap(inputHandler(authHolder, tm))
+            result <- tryWrap(businessLogic(input))
           } yield {
             responseHandler(result)
           }
       }
       .viaMat(compressFlow)(Keep.left)
+      .withAttributes(ActorAttributes.supervisionStrategy(onError))
       .watchTermination() { (_, done) =>
         done.map { _ =>
-          onClose(authHolder)
+          close(authHolder)
         }
+      }
+  }
+
+  private def close(authInfo: A): Unit =
+    if (!closed.getAndSet(true))
+      onClose(authInfo)
+
+  private def tryWrap[T](input: Future[T]): Future[T] =
+    Try(input).recover({ case err: Throwable =>
+      Future.failed[T](err) }).get
+
+  private def onError: PartialFunction[Throwable, Directive] = {
+    case err: Throwable =>
+      if (errorHandler.isDefinedAt(err)) {
+        errorHandler(err) match {
+          case Stop =>
+            close(authHolder)
+            Stop
+          case status => status // We'll continue processing
+        }
+      } else {
+        log.warn("Encountered error not covered in 'wsErrorHandler', stopping stream", err)
+        Stop
       }
   }
 }

@@ -39,4 +39,3 @@ trait RouteContainers {
 
 object InternalAkkaHttpRouteContainer extends RouteContainers
 object ExternalAkkaHttpRouteContainer extends RouteContainers
-object WebsocketAkkaHttpRouteContainer extends RouteContainers
