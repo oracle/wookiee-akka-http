@@ -39,6 +39,7 @@ class WebsocketTest extends WSWrapper {
 
     def routes: Route = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
     var closed: Boolean = false
+    var lastHit: Option[Input] = None
 
     AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
       "basic",
@@ -47,9 +48,10 @@ class WebsocketTest extends WSWrapper {
       { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: AuthHolder =>
+      { (_: AuthHolder, lh: Option[Input]) =>
         println("Called onClose")
         closed = true
+        lastHit = lh
       }
     )
 
@@ -69,6 +71,7 @@ class WebsocketTest extends WSWrapper {
 
           Thread.sleep(500L)
           closed mustEqual true
+          lastHit.get mustEqual Input("abcdef2")
         }
     }
 
@@ -80,7 +83,7 @@ class WebsocketTest extends WSWrapper {
       { (params: ParamHolder, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s"${params.p1}-${params.q1}-${s.getStrictText}")) },
       toOutput,
       toText,
-      { _: ParamHolder => println("Called onClose") }
+      { (_: ParamHolder, _: Option[Input]) => println("Called onClose") }
     )
 
     "query parameter and segment support" in {
@@ -103,7 +106,7 @@ class WebsocketTest extends WSWrapper {
       { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: ParamHolder => println("Called onClose") },
+      { (_: ParamHolder, _: Option[Input]) => println("Called onClose") },
       { _: AkkaHttpRequest => {
         case err: IllegalAccessError =>
           println("Got ERROR:")
@@ -134,7 +137,7 @@ class WebsocketTest extends WSWrapper {
         else tm.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: AuthHolder =>
+      { (_: AuthHolder, _: Option[Input]) =>
         println("Called onClose")
         closed = true
       },
@@ -213,7 +216,7 @@ class WebsocketTest extends WSWrapper {
           inter.reply(Output(input.value + "-output3"))
       },
       toText,
-      { _: AuthHolder =>
+      { (_: AuthHolder, _: Option[Input]) =>
         println("Called onClose")
         closed = true
       }

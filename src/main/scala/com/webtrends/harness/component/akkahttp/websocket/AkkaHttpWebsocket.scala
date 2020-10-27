@@ -52,7 +52,7 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
   textToInput: (A, TextMessage.Strict) => Future[I],
   handleInMessage: (I, WebsocketInterface[I, O, A]) => Unit,
   outputToText: O => TextMessage.Strict,
-  onClose: A => Unit = {_: A => ()},
+  onClose: (A, Option[I]) => Unit = {(_: A, _: Option[I]) => ()},
   errorHandler: PartialFunction[Throwable, Directive] = AkkaHttpEndpointRegistration.wsErrorDefaultHandler,
   options: EndpointOptions = EndpointOptions.default)(implicit ec: ExecutionContext, mat: Materializer) extends LoggingAdapter {
   var closed: AtomicBoolean = new AtomicBoolean(false)
@@ -88,18 +88,14 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
         sActor ! Connect(outgoingActor, authHolder)
       } via compressFlow
 
-    Flow.fromSinkAndSourceCoupled(sink, source).watchTermination() { (_, done) =>
-      done.map { _ =>
-        close()
-      }
-    }
+    Flow.fromSinkAndSourceCoupled(sink, source)
   }
 
   protected def callbackActor(): Props = Props(new SocketActor())
 
-  private def close(): Unit =
+  private def close(lastInput: Option[I]): Unit =
     if (!closed.getAndSet(true))
-      onClose(authHolder)
+      onClose(authHolder, lastInput)
 
   private def completionStrategy: PartialFunction[Any, CompletionStrategy] = {
     case Status.Success(s: CompletionStrategy) => s
@@ -126,7 +122,7 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
     private[websocket] var lastInput: Option[I] = None
 
     override def postStop(): Unit = {
-      close()
+      close(lastInput)
       super.postStop()
     }
 

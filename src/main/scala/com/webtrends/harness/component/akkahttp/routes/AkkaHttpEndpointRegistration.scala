@@ -129,7 +129,7 @@ trait AkkaHttpEndpointRegistration {
     textToInput: (A, TextMessage.Strict) => Future[I],
     handleInMessage: (I, WebsocketInterface[I, O, A]) => Unit,
     outputToText: O => TextMessage.Strict,
-    onClose: A => Unit = {_: A => ()},
+    onClose: (A, Option[I]) => Unit = {(_: A, _: Option[I]) => ()},
     authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
     wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
     options: EndpointOptions = EndpointOptions.default
@@ -156,7 +156,7 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
                                                      textToInput: (A, TextMessage.Strict) => Future[I],
                                                      handleInMessage: (I, WebsocketInterface[I, O, A]) => Unit,
                                                      outputToText: O => TextMessage.Strict,
-                                                     onClose: A => Unit = {_: A => ()},
+                                                     onClose: (A, Option[I]) => Unit = {(_: A, _: Option[I]) => ()},
                                                      authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
                                                      wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
                                                      options: EndpointOptions = EndpointOptions.default)
