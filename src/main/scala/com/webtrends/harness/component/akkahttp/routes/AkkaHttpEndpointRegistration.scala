@@ -31,7 +31,7 @@ import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
 import com.webtrends.harness.component.akkahttp.routes.EndpointType.EndpointType
 import com.webtrends.harness.component.akkahttp.routes.RouteGenerator.{paramHoldersToList, parseRouteSegments, requestLocales}
-import com.webtrends.harness.component.akkahttp.websocket.AkkaHttpWebsocket
+import com.webtrends.harness.component.akkahttp.websocket.{AkkaHttpWebsocket, WebsocketInterface}
 import com.webtrends.harness.logging.{ActorLoggingAdapter, Logger, LoggingAdapter}
 import com.webtrends.harness.utils.ConfigUtil
 import org.json4s.DefaultFormats
@@ -108,9 +108,10 @@ trait AkkaHttpEndpointRegistration {
    *
    * @param path Path to access this WS, can add query segments with '$', e.g. "/some/$param/in/path"
    * @param authHandler Handle auth here before request, if an exception is thrown it will bubble up to 'errorHandler'
-   * @param inputHandler Meant to convert a TextMessage into our main 'T' input type, will be provided with the auth object from 'authHandler'
-   * @param businessLogic Main business logic for this WS, takes input type 'T' and outputs type 'U'
-   * @param responseHandler Logic to parse output type 'U' back to a TextMessage so it can be returned to client
+   * @param textToInput Meant to convert a TextMessage into our main 'I' input type, will be provided with the auth object from 'authHandler'
+   * @param handleInMessage Main business logic for this WS, takes input type 'I' and provides an WebsocketInterface
+   *                        that allows one to reply as many times as desired for each input
+   * @param outputToText Logic to parse output type 'O back to a TextMessage so it can be returned to client
    * @param onClose Logic to be called when a WS closes, good for resource cleanup, can be empty
    * @param authErrorHandler Handling logic in case an error is thrown during the 'authHandler' step
    * @param wsErrorHandler Handling logic in case an uncaught error is thrown during from the 'inputHandler' to the 'responseHandler'
@@ -125,16 +126,16 @@ trait AkkaHttpEndpointRegistration {
     path: String,
     endpointType: EndpointType.EndpointType,
     authHandler: AkkaHttpRequest => Future[A],
-    inputHandler: (A, TextMessage) => Future[I],
-    businessLogic: I => Future[O],
-    responseHandler: O => TextMessage,
+    textToInput: (A, TextMessage.Strict) => Future[I],
+    handleInMessage: (I, WebsocketInterface[I, O, A]) => Unit,
+    outputToText: O => TextMessage.Strict,
     onClose: A => Unit = {_: A => ()},
     authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
     wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
     options: EndpointOptions = EndpointOptions.default
     )(implicit ec: ExecutionContext, mat: Materializer): Unit = {
-    addAkkaWebsocketEndpoint(path, endpointType, authHandler, inputHandler,
-      businessLogic, responseHandler, onClose, authErrorHandler, wsErrorHandler, options)
+    addAkkaWebsocketEndpoint(path, endpointType, authHandler, textToInput,
+      handleInMessage, outputToText, onClose, authErrorHandler, wsErrorHandler, options)
   }
 }
 
@@ -152,9 +153,9 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
                                                      path: String,
                                                      endpointType: EndpointType.EndpointType,
                                                      authHandler: AkkaHttpRequest => Future[A],
-                                                     inputHandler: (A, TextMessage) => Future[I],
-                                                     businessLogic: I => Future[O],
-                                                     responseHandler: O => TextMessage,
+                                                     textToInput: (A, TextMessage.Strict) => Future[I],
+                                                     handleInMessage: (I, WebsocketInterface[I, O, A]) => Unit,
+                                                     outputToText: O => TextMessage.Strict,
                                                      onClose: A => Unit = {_: A => ()},
                                                      authErrorHandler: AkkaHttpRequest => PartialFunction[Throwable, Route] = authErrorDefaultHandler,
                                                      wsErrorHandler: PartialFunction[Throwable, Directive] = wsErrorDefaultHandler,
@@ -181,8 +182,8 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
                   authErrorHandler(reqWrapper)(t)
               })) {
                 onSuccess(authHandler(reqWrapper)) { auth =>
-                  val ws = new AkkaHttpWebsocket(auth, inputHandler,
-                    businessLogic, responseHandler, onClose, wsErrorHandler, options)
+                  val ws = new AkkaHttpWebsocket(auth, textToInput,
+                    handleInMessage, outputToText, onClose, wsErrorHandler, options)
 
                   handleWebSocketMessages(ws.websocketHandler(reqWrapper))
                 }
