@@ -27,9 +27,11 @@ class WebsocketTest extends WSWrapper {
   implicit val formats: DefaultFormats.type = DefaultFormats
 
   var errorThrown: Option[Throwable] = None
-  val toOutput: Input => Future[Output] = { input: Input =>
+  val toOutput: (Input, WebsocketInterface[Input, Output, _]) => Unit = {
+    (input: Input, inter: WebsocketInterface[Input, Output, _]) =>
     println(s"got input $input")
-    Future.successful(Output(input.value + "-output")) }
+    inter.reply(Output(input.value + "-output"))
+  }
   val toText: Output => TextMessage.Strict = { resp: Output => TextMessage(resp.value) }
 
   "Websockets" should {
@@ -37,6 +39,7 @@ class WebsocketTest extends WSWrapper {
 
     def routes: Route = ExternalAkkaHttpRouteContainer.getRoutes.reduceLeft(_ ~ _)
     var closed: Boolean = false
+    var lastHit: Option[Input] = None
 
     AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
       "basic",
@@ -45,9 +48,10 @@ class WebsocketTest extends WSWrapper {
       { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: AuthHolder =>
+      { (_: AuthHolder, lh: Option[Input]) =>
         println("Called onClose")
         closed = true
+        lastHit = lh
       }
     )
 
@@ -67,6 +71,7 @@ class WebsocketTest extends WSWrapper {
 
           Thread.sleep(500L)
           closed mustEqual true
+          lastHit.get mustEqual Input("abcdef2")
         }
     }
 
@@ -78,7 +83,7 @@ class WebsocketTest extends WSWrapper {
       { (params: ParamHolder, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s"${params.p1}-${params.q1}-${s.getStrictText}")) },
       toOutput,
       toText,
-      { _: ParamHolder => println("Called onClose") }
+      { (_: ParamHolder, _: Option[Input]) => println("Called onClose") }
     )
 
     "query parameter and segment support" in {
@@ -101,7 +106,7 @@ class WebsocketTest extends WSWrapper {
       { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: ParamHolder => println("Called onClose") },
+      { (_: ParamHolder, _: Option[Input]) => println("Called onClose") },
       { _: AkkaHttpRequest => {
         case err: IllegalAccessError =>
           println("Got ERROR:")
@@ -132,7 +137,7 @@ class WebsocketTest extends WSWrapper {
         else tm.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
       toOutput,
       toText,
-      { _: AuthHolder =>
+      { (_: AuthHolder, _: Option[Input]) =>
         println("Called onClose")
         closed = true
       },
@@ -161,8 +166,7 @@ class WebsocketTest extends WSWrapper {
           resumeHit mustEqual true
 
           wsClient.sendMessage("stop")
-          val err = wsClient.inProbe.expectError()
-          err.getMessage mustEqual "Will stop the stream"
+          wsClient.expectCompletion()
           closed mustEqual true
         }
     }
@@ -177,6 +181,9 @@ class WebsocketTest extends WSWrapper {
           val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
           val unzip = Source.single(bytes).via(Compression.inflate()).runWith(Sink.head)
           "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
         }
     }
 
@@ -190,6 +197,43 @@ class WebsocketTest extends WSWrapper {
           val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
           val unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
           "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
+
+    AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
+      "multi",
+      EndpointType.EXTERNAL,
+      { _ => Future.successful(AuthHolder("none")) },
+      { (_, msg: TextMessage) => msg.toStrict(5.seconds).map(s => Input(s.getStrictText)) },
+      {
+        (input: Input, inter: WebsocketInterface[Input, Output, _]) =>
+          println(s"got multi input $input")
+          inter.reply(Output(input.value + "-output1"))
+          inter.reply(Output(input.value + "-output2"))
+          inter.reply(Output(input.value + "-output3"))
+      },
+      toText,
+      { (_: AuthHolder, _: Option[Input]) =>
+        println("Called onClose")
+        closed = true
+      }
+    )
+
+    "can send back more than one reply for a single input" in {
+      val wsClient = WSProbe()
+
+      WS("/multi", wsClient.flow) ~> routes ~>
+        check {
+          wsClient.sendMessage("abcdef")
+          wsClient.expectMessage("abcdef-output1")
+          wsClient.expectMessage("abcdef-output2")
+          wsClient.expectMessage("abcdef-output3")
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
         }
     }
   }
