@@ -194,9 +194,15 @@ class WebsocketTest extends WSWrapper {
         check {
           wsClient.sendMessage("abcdef")
 
-          val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          val unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+          var bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          var unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output" mustEqual new String(Await.result(unzip, 10.seconds).toArray)
+
+          wsClient.sendMessage("abcdef")
+
+          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output" mustEqual new String(Await.result(unzip, 10.seconds).toArray)
 
           wsClient.sendCompletion()
           wsClient.expectCompletion()
@@ -236,5 +242,34 @@ class WebsocketTest extends WSWrapper {
           wsClient.expectCompletion()
         }
     }
+
+    "compress multiple replies when requested via gzip" in {
+      val wsClient = WSProbe()
+
+      WS("/multi", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
+        check {
+          wsClient.sendMessage("abcdef")
+
+          var bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          var unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output1" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+
+          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output2" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+
+          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
+          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
+          "abcdef-output3" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
+
+          wsClient.sendCompletion()
+          wsClient.expectCompletion()
+        }
+    }
   }
+
+  override def testConfigSource: String =
+    """
+      |akka.test.single-expect-default = 60000
+      |""".stripMargin
 }
