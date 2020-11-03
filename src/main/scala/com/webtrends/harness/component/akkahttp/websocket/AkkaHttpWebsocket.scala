@@ -20,9 +20,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorRef, Props, Status, Terminated}
+import akka.http.scaladsl.coding.{Coder, Coders}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.Supervision.Directive
-import akka.stream.scaladsl.{Compression, Flow, Sink, Source}
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy, Supervision}
 import akka.util.ByteString
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointOptions}
@@ -34,9 +35,9 @@ import scala.reflect.ClassTag
 import scala.util.Try
 
 object AkkaHttpWebsocket {
-  case class CompressionType(algorithm: String, flow: Flow[ByteString, ByteString, NotUsed])
+  case class CompressionType(algorithm: String, coder: Coder)
   case class WSFailure(error: Throwable)
-  val supportedCompression = Map("gzip" -> Compression.gzip, "deflate" -> Compression.deflate)
+  val supportedCompression = Map("gzip" -> Coders.Gzip, "deflate" -> Coders.Deflate)
 
   def chosenCompression(headers: Map[String, String]): Option[CompressionType] = {
     headers.map(h => h._1.toLowerCase -> h._2).get("accept-encoding").flatMap { encoding =>
@@ -67,8 +68,8 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
           case bm: BinaryMessage =>
             bm.getStrictData
         }
-        .via(compressOpt.flow)
-        .map(tx => BinaryMessage(tx))
+        .mapAsync(1)(bytes => compressOpt.coder.encodeAsync(bytes))
+        .map(BinaryMessage.apply)
       case None =>
         Flow[Message]
     }
