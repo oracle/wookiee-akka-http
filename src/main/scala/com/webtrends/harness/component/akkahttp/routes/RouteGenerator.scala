@@ -242,7 +242,7 @@ object RouteGenerator {
     }
 
   def getPayload(method: HttpMethod, request: HttpRequest): Option[RequestEntity] = method match {
-    case HttpMethods.PUT | HttpMethods.POST | HttpMethods.PATCH => Some(request.entity)
+    case HttpMethods.PUT | HttpMethods.POST | HttpMethods.PATCH | HttpMethods.DELETE => Some(request.entity)
     case _ => None
   }
 
