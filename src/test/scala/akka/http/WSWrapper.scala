@@ -1,9 +1,8 @@
 package akka.http
 
 import akka.http.impl.engine.server.InternalCustomHeader
-import akka.http.javadsl.model.headers.AcceptEncoding
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Upgrade, UpgradeProtocol, `Sec-WebSocket-Protocol`}
+import akka.http.scaladsl.model.headers.{Upgrade, UpgradeProtocol, WebSocketExtension, `Sec-WebSocket-Extensions`, `Sec-WebSocket-Protocol`}
 import akka.http.scaladsl.model.ws.{Message, UpgradeToWebSocket, WebSocketUpgrade}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.model.AttributeKeys.webSocketUpgrade
@@ -20,9 +19,9 @@ import scala.collection.immutable
  */
 trait WSWrapper extends AnyWordSpecLike with Matchers with ScalatestRouteTest {
   override def WS(uri: Uri, clientSideHandler: Flow[Message, Message, Any], subprotocols: Seq[String] = Nil)(implicit materializer: Materializer): HttpRequest =
-    WS(uri, clientSideHandler, None, subprotocols)
+    WS(uri, clientSideHandler, Nil, subprotocols)
 
-  def WS(uri: Uri, clientSideHandler: Flow[Message, Message, Any], encoding: Option[AcceptEncoding], subprotocols: Seq[String])(implicit materializer: Materializer): HttpRequest = {
+  def WS(uri: Uri, clientSideHandler: Flow[Message, Message, Any], extensions: Seq[WebSocketExtension], subprotocols: Seq[String])(implicit materializer: Materializer): HttpRequest = {
     val upgrade = new InternalCustomHeader("UpgradeToWebSocketTestHeader") with UpgradeToWebSocket with WebSocketUpgrade {
       def requestedProtocols: immutable.Seq[String] = subprotocols.toList
 
@@ -39,6 +38,10 @@ trait WSWrapper extends AnyWordSpecLike with Matchers with ScalatestRouteTest {
       .addAttribute(webSocketUpgrade, upgrade)
       .addHeader(upgrade)
 
-    encoding.map(enc => req.addHeader(enc)).getOrElse(req)
+      if(extensions.nonEmpty) {
+        req.addHeader(`Sec-WebSocket-Extensions`(extensions.toList))
+      } else {
+        req
+      }
   }
 }

@@ -19,7 +19,7 @@ package com.webtrends.harness.component.akkahttp.routes
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{HttpEncoding, `Content-Encoding`}
+import akka.http.scaladsl.model.headers.{HttpEncoding, RawHeader, `Content-Encoding`}
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives.{extractRequest, ignoreTrailingSlash, _}
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
@@ -168,7 +168,7 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
           parameterMap { paramMap: Map[String, String] =>
             val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
             val compressList = AkkaHttpWebsocket.chosenCompression(reqHeaders)
-              .map(cType => `Content-Encoding`(HttpEncoding(cType.algorithm))).toList
+              .map(cType => RawHeader(AkkaHttpWebsocket.extensionHeader, AkkaHttpWebsocket.extensionPrefix + cType.algorithm)).toList
 
             respondWithHeaders(compressList) {
               val locales = requestLocales(reqHeaders)

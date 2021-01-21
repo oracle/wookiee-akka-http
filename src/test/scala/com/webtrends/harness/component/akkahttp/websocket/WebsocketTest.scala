@@ -1,9 +1,8 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
 import akka.http.WSWrapper
-import akka.http.javadsl.model.headers.AcceptEncoding
 import akka.http.javadsl.model.ws.BinaryMessage
-import akka.http.scaladsl.model.headers.HttpEncodings
+import akka.http.scaladsl.model.headers.{HttpEncodings, WebSocketExtension}
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -174,7 +173,7 @@ class WebsocketTest extends WSWrapper {
     "compress data when requested via deflate" in {
       val wsClient = WSProbe()
 
-      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.deflate)), Nil) ~> routes ~>
+      WS("/basic", wsClient.flow, Seq(WebSocketExtension("permessage-deflate")), Nil) ~> routes ~>
         check {
           wsClient.sendMessage("abcdef")
 
@@ -190,7 +189,7 @@ class WebsocketTest extends WSWrapper {
     "compress data when requested via gzip" in {
       val wsClient = WSProbe()
 
-      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
+      WS("/basic", wsClient.flow, Seq(WebSocketExtension("permessage-gzip")), Nil) ~> routes ~>
         check {
           wsClient.sendMessage("abcdef")
 
@@ -246,7 +245,7 @@ class WebsocketTest extends WSWrapper {
     "compress multiple replies when requested via gzip" in {
       val wsClient = WSProbe()
 
-      WS("/multi", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
+      WS("/multi", wsClient.flow, Seq(WebSocketExtension("permessage-gzip")), Nil) ~> routes ~>
         check {
           wsClient.sendMessage("abcdef")
 
