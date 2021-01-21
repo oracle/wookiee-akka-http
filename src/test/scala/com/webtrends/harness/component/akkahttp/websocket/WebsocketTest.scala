@@ -178,7 +178,7 @@ class WebsocketTest extends WSWrapper {
           wsClient.sendMessage("abcdef")
 
           val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          val unzip = Source.single(bytes).via(Compression.inflate()).runWith(Sink.head)
+          val unzip = Source.single(bytes).via(Compression.inflate(Compression.MaxBytesPerChunkDefault, true)).runWith(Sink.head)
           "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
 
           wsClient.sendCompletion()

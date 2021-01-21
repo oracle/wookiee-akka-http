@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorRef, Props, Status, Terminated}
-import akka.http.scaladsl.coding.{Coder, Coders}
+import akka.http.scaladsl.coding.{Coder, Coders, WSCoders}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.Supervision.Directive
 import akka.stream.scaladsl.{Flow, Sink, Source}
@@ -37,7 +37,7 @@ import scala.util.Try
 object AkkaHttpWebsocket {
   case class CompressionType(algorithm: String, coder: Coder)
   case class WSFailure(error: Throwable)
-  val supportedCompression = Map("gzip" -> Coders.Gzip, "deflate" -> Coders.Deflate)
+  val supportedCompression = Map("gzip" -> Coders.Gzip, "deflate" -> WSCoders.Deflate() )
 
   // See definition, https://tools.ietf.org/html/rfc7692#section-5.2
   val extensionHeader:String = "Sec-WebSocket-Extensions"
