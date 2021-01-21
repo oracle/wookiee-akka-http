@@ -46,7 +46,7 @@ object AkkaHttpWebsocket {
 
   def chosenCompression(headers: Map[String, String]): Option[CompressionType] = {
     headers.map(h => h._1.toLowerCase -> h._2).get(extensionHeader.toLowerCase).flatMap { extensions =>
-      val encSet = extensions.split(",").map(_.trim).filter(e => e.startsWith(extensionPrefix)).map { e =>
+      val encSet = extensions.split(",").map(_.toLowerCase.trim).filter(e => e.startsWith(extensionPrefix)).map { e =>
         //ensure we only get the codec type and not codec options.
         val endIdx = if (e.indexOf(';') != -1) e.indexOf(';') else e.length
         e.substring(extensionPrefix.length, endIdx)
