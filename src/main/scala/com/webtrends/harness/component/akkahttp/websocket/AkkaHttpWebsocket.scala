@@ -40,10 +40,12 @@ object AkkaHttpWebsocket {
   val supportedCompression = Map("gzip" -> Coders.Gzip, "deflate" -> Coders.Deflate)
 
   // See definition, https://tools.ietf.org/html/rfc7692#section-5.2
-  val extensionPrefix:String = "Sec-WebSocket-Extensions"
+  val extensionHeader:String = "Sec-WebSocket-Extensions"
+  val extensionPrefix:String = "permessage-"
+
 
   def chosenCompression(headers: Map[String, String]): Option[CompressionType] = {
-    headers.map(h => h._1.toLowerCase -> h._2).get("accept-encoding").flatMap { extensions =>
+    headers.map(h => h._1.toLowerCase -> h._2).get(extensionHeader).flatMap { extensions =>
       val encSet = extensions.split(",").map(_.trim).filter(e => e.startsWith(extensionPrefix)).map { e =>
         //ensure we only get the codec type and not codec options.
         val endIdx = if (e.indexOf(';') != -1) e.indexOf(';') else e.length
