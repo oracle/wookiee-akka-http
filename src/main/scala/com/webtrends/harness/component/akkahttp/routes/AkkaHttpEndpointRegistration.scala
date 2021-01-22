@@ -167,10 +167,7 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
         extractRequest { request =>
           parameterMap { paramMap: Map[String, String] =>
             val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-            val compressList = AkkaHttpWebsocket.chosenCompression(reqHeaders)
-              .map(cType => `Content-Encoding`(HttpEncoding(cType.algorithm))).toList
-
-            respondWithHeaders(compressList) {
+            respondWithHeaders() {
               val locales = requestLocales(reqHeaders)
               val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
                 reqHeaders, paramMap, System.currentTimeMillis(), locales, None)
