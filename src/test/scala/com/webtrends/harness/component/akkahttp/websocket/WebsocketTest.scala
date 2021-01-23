@@ -1,15 +1,11 @@
 package com.webtrends.harness.component.akkahttp.websocket
 
 import akka.http.WSWrapper
-import akka.http.javadsl.model.headers.AcceptEncoding
-import akka.http.javadsl.model.ws.BinaryMessage
-import akka.http.scaladsl.model.headers.HttpEncodings
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.WSProbe
 import akka.stream.Supervision.{Resume, Stop}
-import akka.stream.scaladsl.{Compression, Sink, Source}
 import com.webtrends.harness.component.akkahttp.routes.AkkaHttpEndpointRegistration.ErrorHolder
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointType, ExternalAkkaHttpRouteContainer}
 import org.json4s.DefaultFormats
@@ -171,44 +167,6 @@ class WebsocketTest extends WSWrapper {
         }
     }
 
-    "compress data when requested via deflate" in {
-      val wsClient = WSProbe()
-
-      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.deflate)), Nil) ~> routes ~>
-        check {
-          wsClient.sendMessage("abcdef")
-
-          val bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          val unzip = Source.single(bytes).via(Compression.inflate()).runWith(Sink.head)
-          "abcdef-output" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
-
-          wsClient.sendCompletion()
-          wsClient.expectCompletion()
-        }
-    }
-
-    "compress data when requested via gzip" in {
-      val wsClient = WSProbe()
-
-      WS("/basic", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
-        check {
-          wsClient.sendMessage("abcdef")
-
-          var bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          var unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output" mustEqual new String(Await.result(unzip, 10.seconds).toArray)
-
-          wsClient.sendMessage("abcdef")
-
-          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output" mustEqual new String(Await.result(unzip, 10.seconds).toArray)
-
-          wsClient.sendCompletion()
-          wsClient.expectCompletion()
-        }
-    }
-
     AkkaHttpEndpointRegistration.addAkkaWebsocketEndpoint[Input, Output, AuthHolder](
       "multi",
       EndpointType.EXTERNAL,
@@ -243,29 +201,6 @@ class WebsocketTest extends WSWrapper {
         }
     }
 
-    "compress multiple replies when requested via gzip" in {
-      val wsClient = WSProbe()
-
-      WS("/multi", wsClient.flow, Some(AcceptEncoding.create(HttpEncodings.gzip)), Nil) ~> routes ~>
-        check {
-          wsClient.sendMessage("abcdef")
-
-          var bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          var unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output1" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
-
-          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output2" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
-
-          bytes = wsClient.expectMessage().asInstanceOf[BinaryMessage].getStrictData
-          unzip = Source.single(bytes).via(Compression.gunzip()).runWith(Sink.head)
-          "abcdef-output3" mustEqual new String(Await.result(unzip, 5.seconds).toArray)
-
-          wsClient.sendCompletion()
-          wsClient.expectCompletion()
-        }
-    }
   }
 
   override def testConfigSource: String =

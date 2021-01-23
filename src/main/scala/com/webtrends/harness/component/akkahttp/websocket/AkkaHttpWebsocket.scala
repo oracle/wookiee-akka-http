@@ -18,14 +18,11 @@ package com.webtrends.harness.component.akkahttp.websocket
 
 import java.util.concurrent.atomic.AtomicBoolean
 
-import akka.NotUsed
 import akka.actor.{Actor, ActorRef, Props, Status, Terminated}
-import akka.http.scaladsl.coding.{Coder, Coders}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.Supervision.Directive
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy, Supervision}
-import akka.util.ByteString
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointOptions}
 import com.webtrends.harness.component.akkahttp.websocket.AkkaHttpWebsocket._
 import com.webtrends.harness.logging.LoggingAdapter
@@ -35,17 +32,7 @@ import scala.reflect.ClassTag
 import scala.util.Try
 
 object AkkaHttpWebsocket {
-  case class CompressionType(algorithm: String, coder: Coder)
   case class WSFailure(error: Throwable)
-  val supportedCompression = Map("gzip" -> Coders.Gzip, "deflate" -> Coders.Deflate)
-
-  def chosenCompression(headers: Map[String, String]): Option[CompressionType] = {
-    headers.map(h => h._1.toLowerCase -> h._2).get("accept-encoding").flatMap { encoding =>
-      val encSet = encoding.split(",").map(_.trim).toSet
-      val selected = supportedCompression.keySet.intersect(encSet).headOption
-      selected.map(algo => CompressionType(algo, supportedCompression(algo)))
-    }
-  }
 }
 
 class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : ClassTag](
@@ -60,19 +47,6 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
 
   // This the the main method to route WS messages
   def websocketHandler(req: AkkaHttpRequest): Flow[Message, Message, Any] = {
-    val compressFlow: Flow[Message, Message, NotUsed] = chosenCompression(req.requestHeaders) match {
-      case Some(compressOpt) =>
-        Flow[Message].map {
-          case tx: TextMessage =>
-            ByteString(tx.getStrictText)
-          case bm: BinaryMessage =>
-            bm.getStrictData
-        }
-        .mapAsync(1)(bytes => compressOpt.coder.encodeAsync(bytes))
-        .map(BinaryMessage.apply)
-      case None =>
-        Flow[Message]
-    }
 
     val sActor = mat.system.actorOf(callbackActor())
     val sink =
@@ -87,7 +61,7 @@ class AkkaHttpWebsocket[I: ClassTag, O <: Product : ClassTag, A <: Product : Cla
       Source.actorRef[Message](completionStrategy, failureStrategy,
         30, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
         sActor ! Connect(outgoingActor, authHolder)
-      } via compressFlow
+      }
 
     Flow.fromSinkAndSourceCoupled(sink, source)
   }
