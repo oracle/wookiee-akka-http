@@ -27,9 +27,9 @@ import akka.http.scaladsl.model.{HttpMethods, HttpResponse, StatusCodes, _}
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import ch.megard.akka.http.cors.scaladsl.model.HttpOriginMatcher
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import com.typesafe.config.ConfigFactory
 import com.webtrends.harness.command.CommandFactory
 import com.webtrends.harness.component.akkahttp.routes.{AkkaHttpEndpointRegistration, AkkaHttpRequest, EndpointOptions, RouteGenerator}
 import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -37,7 +37,7 @@ import com.webtrends.harness.component.akkahttp.util.{Forbidden, NotAuthorized, 
 import com.webtrends.harness.logging.Logger
 import org.scalatest.WordSpec
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
 class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with PredefinedToEntityMarshallers {
@@ -119,6 +119,24 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
       Get("/getTest") ~> r ~> check {
         assert(status == StatusCodes.OK)
         assert(headers.contains(userHeader.get))
+      }
+    }
+
+    "route with Delete method without request body" in {
+      val r = RouteGenerator.makeHttpRoute("deleteTest", HttpMethods.DELETE, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler)
+      Delete("/deleteTest") ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[RequestInfo].body == Some(""))
+      }
+    }
+
+    "route with Delete method having request body" in {
+      val r = RouteGenerator.makeHttpRoute("deleteTest", HttpMethods.DELETE, actorRef, requestHandler,
+        responseHandler200, rejectionHandler, responseTo, toHandler)
+      Delete("/deleteTest", "Welcome to Wookiee-Akka-Http") ~> r ~> check {
+        assert(status == StatusCodes.OK)
+        assert(entityAs[RequestInfo].body == Some("Welcome to Wookiee-Akka-Http"))
       }
     }
   }
@@ -299,8 +317,18 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
 object RouteGeneratorTest {
 
   val failMessage = "purposeful fail"
-  def simpleFunction(in: AkkaHttpRequest): Future[RequestInfo] =
-    Future.successful(RequestInfo(in.path, in.method.toString, in.requestHeaders, in.segments, in.queryParams, None))
+  def simpleFunction(in: AkkaHttpRequest)
+                    (implicit ec: ExecutionContext, materializer: akka.stream.Materializer): Future[RequestInfo] = {
+    in.requestBody match {
+      case Some(value) => Unmarshaller.stringUnmarshaller(value)
+        .map(requestBody =>
+          RequestInfo(in.path, in.method.toString, in.requestHeaders, in.segments, in.queryParams, Some(requestBody))
+        )
+      case None => Future.successful(
+        RequestInfo(in.path, in.method.toString, in.requestHeaders, in.segments, in.queryParams, None)
+      )
+    }
+  }
   def exceptionFunction(in: AkkaHttpRequest): Future[RequestInfo] = Future.failed(new Exception(failMessage))
   def messageFunction(in: AkkaHttpRequest): Future[String] = Future.successful("Welcome to Wookiee-Akka-Http")
 

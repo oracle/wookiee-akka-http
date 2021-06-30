@@ -179,7 +179,7 @@ object RouteGenerator {
 
   // TODO: #129
   // Don't expose this, just use the paramHoldersToList to change it to something actually useful.
-  protected[routes] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
+  protected[akkahttp] def parseRouteSegments(path: String)(implicit log: Logger): Directive1[AkkaHttpPathSegments] = {
     val segs = path.split("/").filter(_.nonEmpty).toSeq
     var segCount = 0
     try {
@@ -230,7 +230,7 @@ object RouteGenerator {
   }
 
   // TODO: #129
-  private def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
+  private[akkahttp] def paramHoldersToList(segments: AkkaHttpPathSegments): List[String] =
     segments match {
       case Holder1(a) => List(a)
       case Holder2(a, b) => List(a, b)
@@ -242,7 +242,7 @@ object RouteGenerator {
     }
 
   def getPayload(method: HttpMethod, request: HttpRequest): Option[RequestEntity] = method match {
-    case HttpMethods.PUT | HttpMethods.POST | HttpMethods.PATCH => Some(request.entity)
+    case HttpMethods.PUT | HttpMethods.POST | HttpMethods.PATCH | HttpMethods.DELETE => Some(request.entity)
     case _ => None
   }
 
