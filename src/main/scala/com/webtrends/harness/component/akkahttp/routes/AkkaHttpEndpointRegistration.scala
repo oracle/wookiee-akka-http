@@ -16,10 +16,7 @@
 
 package com.webtrends.harness.component.akkahttp.routes
 
-import java.util.concurrent.TimeUnit
-
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{HttpEncoding, `Content-Encoding`}
 import akka.http.scaladsl.model.ws.TextMessage
 import akka.http.scaladsl.server.Directives.{extractRequest, ignoreTrailingSlash, _}
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
@@ -37,6 +34,7 @@ import com.webtrends.harness.utils.ConfigUtil
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.write
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, ExecutionException, Future}
 import scala.reflect.ClassTag
@@ -167,7 +165,7 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
         extractRequest { request =>
           parameterMap { paramMap: Map[String, String] =>
             val reqHeaders = request.headers.map(h => h.name.toLowerCase -> h.value).toMap
-            respondWithHeaders() {
+            respondWithHeaders(List()) {
               val locales = requestLocales(reqHeaders)
               val reqWrapper = AkkaHttpRequest(request.uri.path.toString, paramHoldersToList(segments), request.method, request.protocol,
                 reqHeaders, paramMap, System.currentTimeMillis(), locales, None)
