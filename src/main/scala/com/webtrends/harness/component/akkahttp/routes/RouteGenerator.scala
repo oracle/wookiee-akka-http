@@ -78,7 +78,7 @@ object RouteGenerator {
     val httpPath = parseRouteSegments(path)
     ignoreTrailingSlash {
       httpPath { segments: AkkaHttpPathSegments =>
-        respondWithHeaders(options.defaultHeaders: _*) {
+        respondWithHeaders(options.defaultHeaders.toList) {
           parameterMap { paramMap: Map[String, String] =>
             val routeTimer = options.routeTimerLabel.map(TimerStopwatch(_))
             extractRequest { request =>
