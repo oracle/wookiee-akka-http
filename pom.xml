@@ -29,8 +29,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <akka.stream.version>2.6.5</akka.stream.version>
         <akka.http.version>10.2.0</akka.http.version>
-        <wookiee.core.version>2.0-2.0.x-SNAPSHOT</wookiee.core.version>
-        <wookiee-metrics.version>3.0-2.0.x-SNAPSHOT</wookiee-metrics.version>
+        <wookiee.core.version>2.0.1</wookiee.core.version>
+        <wookiee-metrics.version>2.0.x-SNAPSHOT</wookiee-metrics.version>
         <scala.version>2.12.10</scala.version>
         <scala.artifact.version>2.12</scala.artifact.version>
         <scalatest.version>3.1.2</scalatest.version>
