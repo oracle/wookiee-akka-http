@@ -280,7 +280,7 @@ class RouteGeneratorTest extends WordSpec with ScalatestRouteTest with Predefine
         responseHandler200, rejectionHandler, responseTo, toHandler, corsSettings)
       Options("/corsTest") ~> Origin(HttpOrigin("http://example.com")) ~> `Access-Control-Request-Method`(HttpMethods.GET)  ~> r ~> check {
         assert(status == StatusCodes.OK)
-        assert(response.headers contains `Access-Control-Allow-Methods`(Seq(HttpMethods.GET): _*))
+        assert(response.headers contains `Access-Control-Allow-Methods`(List(HttpMethods.GET)))
       }
     }
     "pre flight should Forbidden the request with unknown origin" in {
