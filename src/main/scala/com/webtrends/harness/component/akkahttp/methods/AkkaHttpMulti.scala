@@ -15,7 +15,7 @@ import com.webtrends.harness.logging.Logger
   */
 trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
   private val internalLogger = Logger(getClass)
-  
+
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 

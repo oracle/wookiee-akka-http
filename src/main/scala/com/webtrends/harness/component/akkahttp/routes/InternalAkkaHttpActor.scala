@@ -53,7 +53,6 @@ class InternalAkkaHttpActor(port: Int, interface: String, settings: ServerSettin
 
   val healthActor = system.actorSelection(HarnessConstants.HealthFullName)
   val serviceActor = system.actorSelection(HarnessConstants.ServicesFullName)
-  val config = context.system.settings.config
 
   val baseRoutes =
     get {
