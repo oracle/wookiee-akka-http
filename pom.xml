@@ -36,6 +36,10 @@
             <id>JFrog Snap</id>
             <url>http://oss.jfrog.org/oss-snapshot-local</url>
         </repository>
+        <repository>
+            <id>Internal</id>
+            <url>https://artifactory.phx.corp.infinitycloud.io/artifactory/infy-release-local</url>
+        </repository>
     </repositories>
 
     <distributionManagement>

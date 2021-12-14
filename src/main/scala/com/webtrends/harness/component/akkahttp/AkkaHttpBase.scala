@@ -11,6 +11,7 @@ import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.util.ByteString
 import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandBean}
 import com.webtrends.harness.component.akkahttp.routes.ExternalAkkaHttpRouteContainer
+import com.webtrends.harness.logging.Logger
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.ext.JodaTimeSerializers
 import org.json4s.{DefaultFormats, Formats, Serialization, jackson}
@@ -64,6 +65,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
   def beanDirective(bean: CommandBean, pathName: String = "", method: HttpMethod = HttpMethods.GET): Directive1[CommandBean] = provide(bean)
 
   def formats: Formats = DefaultFormats ++ JodaTimeSerializers.all
+  private val internalLogger = Logger(getClass)
 
   protected def commandOuterDirective = {
     commandInnerDirective()
@@ -100,17 +102,17 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                         case Success(AkkaHttpCommandResponse(Some(data), _, Some(marshaller), _)) =>
                           completeWith(marshaller) { completeFunc => completeFunc(data) }
                         case Success(AkkaHttpCommandResponse(Some(unknown), _, _, sc)) =>
-                          log.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
+                          internalLogger.error(s"Got unknown data from AkkaHttpCommandResponse $unknown")
                           complete(InternalServerError)
                         case Success(AkkaHttpCommandResponse(None, _, _, sc)) =>
                           complete(sc.getOrElse(NoContent).asInstanceOf[StatusCode])
-                        case Success(response: BaseCommandResponse[T]) => (response.data, response.responseType) match {
-                          case (None, _) => complete(NoContent)
-                          case (Some(data), _) =>
+                        case Success(response: BaseCommandResponse[T]) => response.data match {
+                          case None => complete(NoContent)
+                          case Some(data) =>
                             completeWith(AkkaHttpBase.marshaller[T](fmt = formats)) { completeFunc => completeFunc(data) }
                         }
                         case Success(unknownResponse) =>
-                          log.error(s"Got unknown response $unknownResponse")
+                          internalLogger.error(s"Got unknown response $unknownResponse")
                           complete(InternalServerError)
                         case Failure(AkkaHttpException(msg, statusCode, headers, None)) =>
                           val m: ToResponseMarshaller[(StatusCode, immutable.Seq[HttpHeader], T)] =
@@ -121,7 +123,7 @@ trait AkkaHttpBase extends PathDirectives with MethodDirectives {
                             fromStatusCodeAndHeadersAndValue(marshaller.asInstanceOf[ToEntityMarshaller[T]])
                           completeWith(m) { completeFunc => completeFunc((statusCode, headers, msg.asInstanceOf[T])) }
                         case Failure(f) =>
-                          log.error(s"Command failed with $f")
+                          internalLogger.error(s"Command failed with $f")
                           complete(InternalServerError)
                       }
                     }

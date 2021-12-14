@@ -7,12 +7,15 @@ import akka.http.scaladsl.server.directives.BasicDirectives.provide
 import com.webtrends.harness.command.{BaseCommand, CommandBean}
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.directives.AkkaHttpCORS
+import com.webtrends.harness.logging.Logger
 
 /**
   * Use this class to create a command that can handle any number of endpoints with any
   * number of HTTP methods in a single class
   */
 trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =>
+  private val internalLogger = Logger(getClass)
+  
   // Map of endpoint names as keys to endpoint info
   def allPaths: List[Endpoint]
 
@@ -98,7 +101,7 @@ trait AkkaHttpMulti extends AkkaHttpBase with AkkaHttpCORS { this: BaseCommand =
         addRoute(commandInnerDirective(endpoint.path, endpoint.method))
       } catch {
         case ex: Throwable =>
-          log.error(s"Error adding path ${endpoint.path}", ex)
+          internalLogger.error(s"Error adding path ${endpoint.path}", ex)
           throw ex
       }
     }
