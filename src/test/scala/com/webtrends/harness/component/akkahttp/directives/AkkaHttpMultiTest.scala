@@ -12,7 +12,6 @@ import com.webtrends.harness.command.{BaseCommand, BaseCommandResponse, CommandB
 import com.webtrends.harness.component.akkahttp._
 import com.webtrends.harness.component.akkahttp.methods.{AkkaHttpMulti, Endpoint}
 import com.webtrends.harness.component.akkahttp.util.TestEntity
-import com.webtrends.harness.logging.Logger
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, MustMatchers}
 
@@ -63,8 +62,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(Some((bean.get("ver") + params._2 + params._3 + params._4 + bean.get("four") + params._6).asInstanceOf[T])))
         }
       }
-
-      override protected val log = Logger.getLogger(getClass)
     }
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -151,8 +148,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
                 holder._1.asInstanceOf[T])))
           }
         }
-
-        override protected val log = Logger.getLogger(getClass)
       }
 
       import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
@@ -203,8 +198,6 @@ class AkkaHttpMultiTest extends FunSuite with PropertyChecks with MustMatchers w
             Future.successful(CommandResponse(Some("GET".asInstanceOf[T])))
         }
       }
-
-      override protected val log = Logger.getLogger(getClass)
     }
 
     import com.webtrends.harness.component.akkahttp.util.TestJsonSupport._
