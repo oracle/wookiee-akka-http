@@ -79,7 +79,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
-      Source.actorRef[Message](50, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
+      Source.actorRef[Message](50, OverflowStrategy.backpressure).mapMaterializedValue { outgoingActor =>
         sActor ! Connect(outgoingActor, isStreamingText)
       } map {
         case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
