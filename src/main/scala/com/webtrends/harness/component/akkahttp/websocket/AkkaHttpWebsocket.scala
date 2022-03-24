@@ -75,7 +75,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         case m =>
           log.warn("Unknown message: " + m)
           Nil
-      }.to(Sink.actorRef(sActor, CloseSocket()))
+      }.async.to(Sink.actorRef(sActor, CloseSocket()))
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
