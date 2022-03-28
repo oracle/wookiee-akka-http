@@ -79,14 +79,14 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
 
     val compression = supported.find(enc => encodings.exists(_.matches(enc)))
     val source: Source[Message, Any] =
-      Source.actorRef[Message](10, OverflowStrategy.backpressure).mapMaterializedValue { outgoingActor =>
+      Source.actorRef[Message](50, OverflowStrategy.dropHead).mapMaterializedValue { outgoingActor =>
         sActor ! Connect(outgoingActor, isStreamingText)
       } map {
         case tx: TextMessage if compression.nonEmpty => compress(tx.getStrictText, compression)
         // TODO Add support for binary message compression if anyone ends up wanting it
         case mess => mess
       }
-    val livingSource = if (keepAliveOn) source.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
+    val livingSource = if (keepAliveOn) source.async.keepAlive(settings.ws.keepAliveFrequency, () => TextMessage("heartbeat"))
       else source
 
     Flow.fromSinkAndSourceCoupled(sink, livingSource)
