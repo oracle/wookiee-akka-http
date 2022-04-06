@@ -65,7 +65,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
         val causes = rejections.map(_.cause.description).mkString(", ")
         BasicDirectives.extractRequest(request => {
           logAccess(request, CommandBean(Map()), Some(StatusCodes.Forbidden))
-          complete(StatusCodes.Forbidden-> s"CORS: $causes")
+          complete(StatusCodes.Forbidden-> TextMessage(s"CORS: $causes").toString())
         })
       }
       .result()
