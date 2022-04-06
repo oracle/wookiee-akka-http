@@ -119,7 +119,7 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // Route used to send along our websocket messages and make the initial handshake
   override protected def commandOuterDirective: Route = check { bean =>
     extractRequest { req =>
-      corsSupport(path) {
+      corsSupport(path) { //Validating the CORS origin
         // Query params that can be marshalled to a case class via httpParams
         val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
         bean.addValue(RequestHeaders, reqHeaders)
