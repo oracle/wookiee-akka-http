@@ -2,17 +2,19 @@ package com.webtrends.harness.component.akkahttp.websocket
 
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.zip.{DeflaterOutputStream, GZIPOutputStream}
-
 import akka.actor.{Actor, ActorRef, Props, Terminated}
 import akka.http.javadsl.model.headers.{AcceptEncoding, ContentEncoding, HttpEncodingRange}
-import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.{HttpEncoding, HttpEncodings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.directives.BasicDirectives
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.util.ByteString
+import ch.megard.akka.http.cors.javadsl
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.{Command, CommandBean}
 import com.webtrends.harness.component.akkahttp.AkkaHttpBase.RequestHeaders
@@ -56,6 +58,28 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // Props for output SocketActor
   def callbackActor(bean: CommandBean): Props = Props(new SocketActor(bean))
 
+  def corsWebsocketRejectionHandler: RejectionHandler = {
+    RejectionHandler
+      .newBuilder()
+      .handleAll[javadsl.CorsRejection] { rejections =>
+        val causes = rejections.map(_.cause.description).mkString(", ")
+        BasicDirectives.extractRequest(request => {
+          logAccess(request, CommandBean(Map()), Some(StatusCodes.Forbidden))
+          complete(StatusCodes.Forbidden-> s"CORS: $causes")
+        })
+      }
+      .result()
+  }
+
+
+  private def corsSupport(path: String): Directive0 = {
+    if (corsEnabled) {
+      handleRejections(corsWebsocketRejectionHandler) & CorsDirectives.cors(corsSettingsByPath(path))
+    } else {
+      pass
+    }
+  }
+
   // This the the main method to route WS messages
   protected def webSocketService(bean: CommandBean, encodings: List[HttpEncodingRange]): Flow[Message, Message, Any] = {
     val sActor = context.system.actorOf(callbackActor(bean))
@@ -95,20 +119,22 @@ trait AkkaHttpWebsocket extends Command with HActor with AkkaHttpBase {
   // Route used to send along our websocket messages and make the initial handshake
   override protected def commandOuterDirective: Route = check { bean =>
     extractRequest { req =>
-      // Query params that can be marshalled to a case class via httpParams
-      val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
-      bean.addValue(RequestHeaders, reqHeaders)
-      beanDirective(bean, path, method) { outputBean =>
-        req.header[AcceptEncoding] match {
-          case Some(encoding) =>
-            supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
-              case Some(compression) => respondWithHeader(ContentEncoding.create(compression)) {
-                handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
+      corsSupport(path) {
+        // Query params that can be marshalled to a case class via httpParams
+        val reqHeaders = req.headers.map(h => h.name.toLowerCase -> h.value).toMap
+        bean.addValue(RequestHeaders, reqHeaders)
+        beanDirective(bean, path, method) { outputBean =>
+          req.header[AcceptEncoding] match {
+            case Some(encoding) =>
+              supported.find(enc => encoding.getEncodings.toList.exists(_.matches(enc))) match {
+                case Some(compression) => respondWithHeader(ContentEncoding.create(compression)) {
+                  handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
+                }
+                case None => handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
               }
-              case None => handleWebSocketMessages(webSocketService(outputBean, encoding.getEncodings.toList))
-            }
-          case None =>
-            handleWebSocketMessages(webSocketService(outputBean, List()))
+            case None =>
+              handleWebSocketMessages(webSocketService(outputBean, List()))
+          }
         }
       }
     }
