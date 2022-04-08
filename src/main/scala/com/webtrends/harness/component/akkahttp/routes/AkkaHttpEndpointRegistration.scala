@@ -28,6 +28,7 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import com.webtrends.harness.app.HActor
 import com.webtrends.harness.command.CommandHelper
 import com.webtrends.harness.component.akkahttp.AkkaHttpManager
+import com.webtrends.harness.component.akkahttp.client.oauth.token.Error.UnauthorizedException.formats
 import com.webtrends.harness.component.akkahttp.logging.AccessLog
 import com.webtrends.harness.component.akkahttp.routes.EndpointType.EndpointType
 import com.webtrends.harness.component.akkahttp.routes.RouteGenerator.{paramHoldersToList, parseRouteSegments, requestLocales}
@@ -222,7 +223,7 @@ object AkkaHttpEndpointRegistration extends LoggingAdapter {
       .handleAll[javadsl.CorsRejection] { rejections =>
         val causes = rejections.map(_.cause.description).mkString(", ")
         accessLogIdGetter.foreach(g => AccessLog.logAccess(request, g(request), StatusCodes.Forbidden))
-        complete((StatusCodes.Forbidden, s"CORS: $causes"))
+        complete(StatusCodes.Forbidden,write(ErrorHolder(causes)))
       }
       .result()
   }
