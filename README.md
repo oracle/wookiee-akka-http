@@ -5,6 +5,9 @@ Component for Extending Wookiee Commands to Function as Akka Http Endpoints
 
 [Main Wookiee Project](https://github.com/oracle/wookiee)
 
+### Contributing
+This project is not accepting external contributions at this time. For bugs or enhancement requests, please file a GitHub issue unless it’s security related. When filing a bug remember that the better written the bug is, the more likely it is to be fixed. If you think you’ve found a security vulnerability, do not raise a GitHub issue and follow the instructions in our [security policy](./SECURITY.md).
+
 ### Adding to Pom
 
 Add the jfrog repo to your project first:
@@ -37,3 +40,7 @@ wookiee-akka-http {
   }
 }
 ~~~~
+
+## License
+Copyright (c) 2004 Oracle and/or its affiliates.
+Released under the Apache License Version 2.0
